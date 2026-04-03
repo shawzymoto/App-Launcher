@@ -3,6 +3,7 @@ package com.example.applauncher
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -122,7 +123,17 @@ class AppLauncher(private val context: Context) {
     fun canStartActivitiesNow(): Boolean {
         val appState = ActivityManager.RunningAppProcessInfo()
         ActivityManager.getMyMemoryState(appState)
-        return appState.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+        if (appState.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
+            return true
+        }
+
+        // If this app is set as default HOME launcher, allow the launch attempt.
+        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+        }
+        val resolveInfo = context.packageManager.resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
+        val currentHomePackage = resolveInfo?.activityInfo?.packageName
+        return currentHomePackage == context.packageName
     }
 
     fun setLastLaunchError(error: String) {

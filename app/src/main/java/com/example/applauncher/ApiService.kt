@@ -279,26 +279,52 @@ class ApiService(private val context: Context) {
                     val packageScopedIntent = Intent(Intent.ACTION_VIEW).apply {
                         data = deepLinkUri
                         setPackage(request.packageName)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                        addCategory(Intent.CATEGORY_BROWSABLE)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                     }
 
-                    val packageScopedResolvable =
-                        packageScopedIntent.resolveActivity(context.packageManager) != null
-                    if (packageScopedResolvable) {
-                        context.startActivity(packageScopedIntent)
-                        return true
+                    val packageHandlers = context.packageManager.queryIntentActivities(packageScopedIntent, 0)
+                    if (packageHandlers.isNotEmpty()) {
+                        for (handler in packageHandlers) {
+                            val activityInfo = handler.activityInfo ?: continue
+                            val explicitIntent = Intent(Intent.ACTION_VIEW).apply {
+                                data = deepLinkUri
+                                addCategory(Intent.CATEGORY_BROWSABLE)
+                                setClassName(activityInfo.packageName, activityInfo.name)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                            }
+                            try {
+                                context.startActivity(explicitIntent)
+                                return true
+                            } catch (e: Exception) {
+                                Log.w(tag, "Deep link handler failed: ${activityInfo.packageName}/${activityInfo.name}", e)
+                            }
+                        }
                     }
 
                     // Some apps register deep links but not with explicit package scoping.
                     val unscopedIntent = Intent(Intent.ACTION_VIEW).apply {
                         data = deepLinkUri
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                        addCategory(Intent.CATEGORY_BROWSABLE)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                     }
-                    val unscopedResolvable =
-                        unscopedIntent.resolveActivity(context.packageManager) != null
-                    if (unscopedResolvable) {
-                        context.startActivity(unscopedIntent)
-                        return true
+                    val unscopedHandlers = context.packageManager.queryIntentActivities(unscopedIntent, 0)
+                    if (unscopedHandlers.isNotEmpty()) {
+                        for (handler in unscopedHandlers) {
+                            val activityInfo = handler.activityInfo ?: continue
+                            val explicitIntent = Intent(Intent.ACTION_VIEW).apply {
+                                data = deepLinkUri
+                                addCategory(Intent.CATEGORY_BROWSABLE)
+                                setClassName(activityInfo.packageName, activityInfo.name)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                            }
+                            try {
+                                context.startActivity(explicitIntent)
+                                return true
+                            } catch (e: Exception) {
+                                Log.w(tag, "Unscoped deep link handler failed: ${activityInfo.packageName}/${activityInfo.name}", e)
+                            }
+                        }
                     }
 
                     // Fallback to opening the app normally if deep link isn't resolvable.

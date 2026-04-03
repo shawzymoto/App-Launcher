@@ -2,4 +2,9 @@
 <resources>
     <string name="app_name">App Launcher</string>
     <string name="app_launcher_title">Installed Apps</string>
+    <string name="launcher_mode_enabled">Launcher mode is enabled. This app is your default Home app.</string>
+    <string name="launcher_mode_not_enabled">Launcher mode is disabled. Background app switching may be blocked by Android.</string>
+    <string name="enable_launcher_mode_button">Enable Launcher Mode</string>
+    <string name="launcher_is_default_button">Launcher Is Default</string>
+    <string name="launcher_already_default">This app is already your default launcher</string>
 </resources>
