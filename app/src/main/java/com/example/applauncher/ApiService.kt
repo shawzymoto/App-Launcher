@@ -24,6 +24,7 @@ import kotlinx.serialization.json.Json
 class ApiService(private val context: Context) {
     private val apiKeyManager = ApiKeyManager(context)
     private val appLauncher = AppLauncher(context)
+    private val appManager = AppManager(context)
     private val tag = "ApiService"
     
     companion object {
@@ -56,7 +57,7 @@ class ApiService(private val context: Context) {
                 )
             }
 
-            // List all supported apps
+            // List installed launchable apps
             get("/api/apps") {
                 if (!call.verifyApiKey()) {
                     call.respond(
@@ -71,19 +72,21 @@ class ApiService(private val context: Context) {
                 }
 
                 try {
-                    val appList = AppConfig.SUPPORTED_APPS.map { app ->
+                    val appList = appManager.getInstalledApps()
+                        .filter { appLauncher.hasLaunchableActivity(it.packageName) }
+                        .map { app ->
                         AppListResponse(
                             appName = app.name,
                             packageName = app.packageName,
-                            supported = appLauncher.isAppInstalled(app.packageName),
-                            supportedActions = app.supportedActions
+                            supported = true,
+                            supportedActions = emptyList()
                         )
                     }
                     call.respond(
                         HttpStatusCode.OK,
                         ApiResponse(
                             success = true,
-                            message = "Supported apps retrieved",
+                            message = "Installed launchable apps retrieved",
                             data = AppsData(apps = appList)
                         )
                     )
@@ -127,18 +130,6 @@ class ApiService(private val context: Context) {
                 }
 
                 try {
-                    if (!AppConfig.isSupportedApp(packageName)) {
-                        call.respond(
-                            HttpStatusCode.BadRequest,
-                            ApiResponse<Unit>(
-                                success = false,
-                                message = "App is not in supported apps list",
-                                error = "UNSUPPORTED_APP"
-                            )
-                        )
-                        return@post
-                    }
-
                     val launched = appLauncher.launchApp(packageName)
                     if (launched) {
                         Log.i(tag, "Successfully launched app: $packageName")
@@ -151,12 +142,13 @@ class ApiService(private val context: Context) {
                             )
                         )
                     } else {
+                        val launchError = appLauncher.getLastLaunchError() ?: "LAUNCH_FAILED"
                         call.respond(
                             HttpStatusCode.InternalServerError,
                             ApiResponse<Unit>(
                                 success = false,
                                 message = "Failed to launch app",
-                                error = "LAUNCH_FAILED"
+                                error = launchError
                             )
                         )
                     }
@@ -190,18 +182,6 @@ class ApiService(private val context: Context) {
                 try {
                     val request = call.receive<LaunchRequest>()
 
-                    if (!AppConfig.isSupportedApp(request.packageName)) {
-                        call.respond(
-                            HttpStatusCode.BadRequest,
-                            ApiResponse<Unit>(
-                                success = false,
-                                message = "App is not in supported apps list",
-                                error = "UNSUPPORTED_APP"
-                            )
-                        )
-                        return@post
-                    }
-
                     val launched = launchAppWithOptions(request)
                     if (launched) {
                         Log.i(tag, "Successfully launched app with options: ${request.packageName}")
@@ -217,12 +197,13 @@ class ApiService(private val context: Context) {
                             )
                         )
                     } else {
+                        val launchError = appLauncher.getLastLaunchError() ?: "LAUNCH_FAILED"
                         call.respond(
                             HttpStatusCode.InternalServerError,
                             ApiResponse<Unit>(
                                 success = false,
                                 message = "Failed to launch app",
-                                error = "LAUNCH_FAILED"
+                                error = launchError
                             )
                         )
                     }
@@ -261,7 +242,15 @@ class ApiService(private val context: Context) {
                         data = ConfigData(
                             port = API_PORT,
                             apiKeyRequired = true,
-                            supportedApps = AppConfig.SUPPORTED_APPS
+                            supportedApps = appManager.getInstalledApps().map {
+                                SupportedApp(
+                                    name = it.name,
+                                    packageName = it.packageName,
+                                    deepLinkScheme = null,
+                                    supportedActions = emptyList(),
+                                    description = "Installed app"
+                                )
+                            }
                         )
                     )
                 )
@@ -276,21 +265,50 @@ class ApiService(private val context: Context) {
 
     private fun launchAppWithOptions(request: LaunchRequest): Boolean {
         return try {
+            if (!appLauncher.canStartActivitiesNow()) {
+                appLauncher.setLastLaunchError("BACKGROUND_ACTIVITY_START_BLOCKED")
+                Log.w(tag, "Blocked launch from background state for package: ${request.packageName}")
+                return false
+            }
+
             when {
                 request.deepLink != null -> {
-                    // Launch using deep link
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        data = Uri.parse(request.deepLink)
+                    val deepLinkUri = Uri.parse(request.deepLink)
+
+                    // Try deep link constrained to the target package first.
+                    val packageScopedIntent = Intent(Intent.ACTION_VIEW).apply {
+                        data = deepLinkUri
                         setPackage(request.packageName)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                     }
-                    context.startActivity(intent)
-                    true
+
+                    val packageScopedResolvable =
+                        packageScopedIntent.resolveActivity(context.packageManager) != null
+                    if (packageScopedResolvable) {
+                        context.startActivity(packageScopedIntent)
+                        return true
+                    }
+
+                    // Some apps register deep links but not with explicit package scoping.
+                    val unscopedIntent = Intent(Intent.ACTION_VIEW).apply {
+                        data = deepLinkUri
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                    }
+                    val unscopedResolvable =
+                        unscopedIntent.resolveActivity(context.packageManager) != null
+                    if (unscopedResolvable) {
+                        context.startActivity(unscopedIntent)
+                        return true
+                    }
+
+                    // Fallback to opening the app normally if deep link isn't resolvable.
+                    appLauncher.launchApp(request.packageName)
                 }
                 request.action != null -> {
                     // Launch with specific action
                     val intent = Intent(request.action).apply {
                         setPackage(request.packageName)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                         request.extras?.forEach { (key, value) ->
                             putExtra(key, value)
                         }

@@ -41,8 +41,8 @@ GET /health
 
 ---
 
-### 2. List Supported Apps
-Get a list of all supported apps and their installation status.
+### 2. List Installed Launchable Apps
+Get a list of installed apps that can be launched by package name.
 
 **Request:**
 ```
@@ -55,21 +55,23 @@ Headers:
 ```json
 {
   "success": true,
-  "message": "Supported apps retrieved",
-  "data": [
-    {
-      "appName": "Immich Frame",
-      "packageName": "app.immich",
-      "supported": true,
-      "supportedActions": ["view", "refresh"]
-    },
-    {
-      "appName": "Unifi Protect",
-      "packageName": "com.ubnt.android.protect",
-      "supported": true,
-      "supportedActions": ["camera", "live-view", "event"]
-    }
-  ]
+  "message": "Installed launchable apps retrieved",
+  "data": {
+    "apps": [
+      {
+        "appName": "Immich Frame",
+        "packageName": "com.immichframe.immichframe",
+        "supported": true,
+        "supportedActions": []
+      },
+      {
+        "appName": "Unifi Protect",
+        "packageName": "com.ubnt.android.protect",
+        "supported": true,
+        "supportedActions": []
+      }
+    ]
+  }
 }
 ```
 
@@ -87,8 +89,8 @@ Headers:
 
 **Examples:**
 ```bash
-# Launch Immich Frame
-curl -X POST http://192.168.1.100:3001/api/launch/app.immich \
+# Launch any installed app by package name
+curl -X POST http://192.168.1.100:3001/api/launch/com.immichframe.immichframe \
   -H "X-API-Key: app-launcher-default-key"
 
 # Launch Unifi Protect
@@ -102,7 +104,7 @@ curl -X POST http://192.168.1.100:3001/api/launch/com.ubnt.android.protect \
   "success": true,
   "message": "App launched successfully",
   "data": {
-    "packageName": "app.immich"
+    "packageName": "com.immichframe.immichframe"
   }
 }
 ```
@@ -163,7 +165,7 @@ curl -X POST http://192.168.1.100:3001/api/launch \
 ---
 
 ### 5. Get API Configuration
-Retrieve the current API configuration and supported apps.
+Retrieve the current API configuration and installed app metadata snapshot.
 
 **Request:**
 ```
@@ -183,13 +185,17 @@ Headers:
     "supportedApps": [
       {
         "name": "Immich Frame",
-        "packageName": "app.immich",
-        "actions": ["view", "refresh"]
+        "packageName": "com.immichframe.immichframe",
+        "deepLinkScheme": null,
+        "supportedActions": [],
+        "description": "Installed app"
       },
       {
         "name": "Unifi Protect",
         "packageName": "com.ubnt.android.protect",
-        "actions": ["camera", "live-view", "event"]
+        "deepLinkScheme": null,
+        "supportedActions": [],
+        "description": "Installed app"
       }
     ]
   }
@@ -206,15 +212,6 @@ Headers:
   "success": false,
   "message": "Unauthorized: Invalid or missing API key",
   "error": "INVALID_API_KEY"
-}
-```
-
-### Unsupported App
-```json
-{
-  "success": false,
-  "message": "App is not in supported apps list",
-  "error": "UNSUPPORTED_APP"
 }
 ```
 
@@ -247,7 +244,7 @@ Headers:
 
 rest_command:
   launch_immich_frame:
-    url: "http://192.168.1.100:3001/api/launch/app.immich"
+    url: "http://192.168.1.100:3001/api/launch/com.immichframe.immichframe"
     method: POST
     headers:
       X-API-Key: "app-launcher-default-key"
@@ -304,7 +301,7 @@ automation:
 
 ### Open Immich Frame
 ```bash
-curl -X POST http://192.168.1.100:3001/api/launch/app.immich \
+curl -X POST http://192.168.1.100:3001/api/launch/com.immichframe.immichframe \
   -H "X-API-Key: app-launcher-default-key"
 ```
 
@@ -368,7 +365,7 @@ Alternatively, contact Ubiquiti support or check the Unifi Protect API documenta
 ### "App Not Installed" Error
 - Confirm the app is installed on the device
 - Check the package name is correct
-- Verify in `/api/apps` endpoint that the app shows as supported
+- Verify in `/api/apps` endpoint that the app appears in `data.apps`
 
 ### Deep Link Not Working
 - Verify the app supports the deep link scheme

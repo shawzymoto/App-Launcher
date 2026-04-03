@@ -105,12 +105,12 @@ The app starts a REST API on port 3001 automatically when launched.
 # Health check (no auth required)
 curl http://localhost:3001/health
 
-# List configured apps
+# List installed launchable apps
 curl http://localhost:3001/api/apps \
   -H "X-API-Key: app-launcher-default-key"
 
-# Launch an app
-curl -X POST http://localhost:3001/api/launch/app.immich \
+# Launch an app by package name
+curl -X POST http://localhost:3001/api/launch/com.example.app \
   -H "X-API-Key: app-launcher-default-key"
 
 # Launch with deep link (e.g. specific Unifi camera)
@@ -126,14 +126,9 @@ curl -X POST http://localhost:3001/api/launch \
 👉 See [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for automation examples  
 👉 See [CONFIGURATION.md](CONFIGURATION.md) for changing API key, port, and adding apps
 
-## Supported Apps
+## Launchable Apps
 
-The following apps are currently supported for remote launching:
-
-| App Name | Package | Actions | Notes |
-|----------|---------|---------|-------|
-| **Immich Frame** | `app.immich` | view, refresh | Photo frame app |
-| **Unifi Protect** | `com.ubnt.android.protect` | camera, live-view, event | Security camera app with camera-specific deep link support |
+The API can launch any installed app that exposes a launchable activity. Use `GET /api/apps` to discover package names available on the device.
 
 ## Project Structure
 
@@ -186,7 +181,7 @@ AppLauncher/
 - **AppManager**: Data Layer - Queries installed apps
 - **ApiService**: API Layer - Ktor-based REST API server ★ NEW
 - **ApiKeyManager**: Security - Manages API authentication ★ NEW
-- **AppConfig**: Configuration - Defines supported apps ★ NEW
+- **AppConfig**: Optional examples for app/deep-link defaults ★ NEW
 
 ## Requirements
 
@@ -232,7 +227,7 @@ X-API-Key: app-launcher-default-key
 
 ### Main Endpoints
 - `GET /health` - Health check (no auth)
-- `GET /api/apps` - List supported and installed apps
+- `GET /api/apps` - List installed launchable apps
 - `POST /api/launch/{packageName}` - Launch app by package name
 - `POST /api/launch` - Launch with deep link or intent extras
 - `GET /api/config` - Get server configuration
@@ -280,15 +275,13 @@ See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for more Home Assistant example
 
 You can customize the app by:
 
-### Adding More Supported Apps
-Edit `AppConfig.kt` and add to `SUPPORTED_APPS`:
-```kotlin
-SupportedApp(
-    name = "My App",
-    packageName = "com.example.myapp",
-    deepLinkScheme = "myapp://",
-    supportedActions = listOf("action1", "action2")
-)
+### Launching Any Installed App
+Use the package name returned by `GET /api/apps`.
+
+Example:
+```bash
+curl -X POST http://localhost:3001/api/launch/com.example.myapp \
+  -H "X-API-Key: app-launcher-default-key"
 ```
 
 ### Changing API Key
@@ -322,7 +315,7 @@ The default API key is `app-launcher-default-key`. In a real deployment:
   "success": true,
   "message": "App launched successfully",
   "data": {
-    "packageName": "app.immich"
+    "packageName": "com.example.myapp"
   }
 }
 ```
