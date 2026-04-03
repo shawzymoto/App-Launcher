@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <domain-config>
+        <domain includeSubdomains="true">*.example.com</domain>
+        <path-config>
+            <path-element path=".*">
+                <certificate-pin digest="SHA-256">0MWcWQ2Ry0kQ7IamjKji</certificate-pin>
+            </path-element>
+        </path-config>
+    </domain-config>
+</data-extraction-rules>
