@@ -204,6 +204,108 @@ Headers:
 
 ---
 
+### 6. Get Quiet Hours Status
+Retrieve quiet-hours settings and whether quiet mode is currently active.
+
+**Request:**
+```
+GET /api/quiet-hours
+Headers:
+  X-API-Key: app-launcher-default-key
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Quiet hours status retrieved",
+  "data": {
+    "enabled": true,
+    "startHour": 22,
+    "startMinute": 0,
+    "endHour": 7,
+    "endMinute": 0,
+    "activeNow": false
+  }
+}
+```
+
+---
+
+### 7. Update Quiet Hours Settings
+Update one or more quiet-hours fields in a single request.
+
+**Request:**
+```
+POST /api/quiet-hours
+Headers:
+  X-API-Key: app-launcher-default-key
+Content-Type: application/json
+
+Body:
+{
+  "enabled": true,
+  "startHour": 22,
+  "startMinute": 0,
+  "endHour": 7,
+  "endMinute": 0
+}
+```
+
+All fields are optional. Time values must be valid 24-hour values (`0-23` for hour, `0-59` for minute).
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Quiet hours updated",
+  "data": {
+    "enabled": true,
+    "startHour": 22,
+    "startMinute": 0,
+    "endHour": 7,
+    "endMinute": 0,
+    "activeNow": false
+  }
+}
+```
+
+---
+
+### 8. Toggle Quiet Hours Enabled State
+Quickly enable or disable quiet hours without changing times.
+
+**Request:**
+```
+POST /api/quiet-hours/enabled
+Headers:
+  X-API-Key: app-launcher-default-key
+Content-Type: application/json
+
+Body:
+{
+  "enabled": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Quiet hours enabled state updated",
+  "data": {
+    "enabled": false,
+    "startHour": 22,
+    "startMinute": 0,
+    "endHour": 7,
+    "endMinute": 0,
+    "activeNow": false
+  }
+}
+```
+
+---
+
 ## Error Responses
 
 ### Unauthorized (Missing or Invalid API Key)
@@ -243,42 +345,54 @@ Headers:
 # Home Assistant configuration.yaml
 
 rest_command:
-  launch_immich_frame:
-    url: "http://192.168.1.100:3001/api/launch/com.immichframe.immichframe"
+  launch_app:
+    url: "http://{{ device_ip }}:3001/api/launch"
     method: POST
     headers:
-      X-API-Key: "app-launcher-default-key"
-
-  launch_unifi_protect:
-    url: "http://192.168.1.100:3001/api/launch/com.ubnt.android.protect"
-    method: POST
-    headers:
-      X-API-Key: "app-launcher-default-key"
-
-  launch_unifi_camera:
-    url: "http://192.168.1.100:3001/api/launch"
-    method: POST
-    headers:
-      X-API-Key: "app-launcher-default-key"
+      X-API-Key: !secret app_launcher_api_key
       Content-Type: "application/json"
-    payload: '{"packageName": "com.ubnt.android.protect", "deepLink": "unifi-protect://camera/{{ camera_id }}"}'
+    payload: '{"packageName": "{{ package_name }}"}'
+
+  quiet_hours_set_enabled:
+    url: "http://{{ device_ip }}:3001/api/quiet-hours/enabled"
+    method: POST
+    headers:
+      X-API-Key: !secret app_launcher_api_key
+      Content-Type: "application/json"
+    payload: '{"enabled": {{ enabled | lower }}}'
+
+  quiet_hours_update:
+    url: "http://{{ device_ip }}:3001/api/quiet-hours"
+    method: POST
+    headers:
+      X-API-Key: !secret app_launcher_api_key
+      Content-Type: "application/json"
+    payload: '{"enabled": {{ enabled | lower }}, "startHour": {{ start_hour }}, "startMinute": {{ start_minute }}, "endHour": {{ end_hour }}, "endMinute": {{ end_minute }}}'
 
 automation:
-  - alias: "Open Unifi Protect on Device"
+  - alias: "Open Immich On Living Room Device"
     trigger:
       platform: webhook
-      webhook_id: unifi_protect_webhook
+      webhook_id: launch_frame_webhook
     action:
-      service: rest_command.launch_unifi_protect
+      service: rest_command.launch_app
+      data:
+        device_ip: "192.168.1.100"
+        package_name: "com.immichframe.immichframe"
 
-  - alias: "Open Specific Camera in Unifi"
+  - alias: "Enable Quiet Hours Every Night"
     trigger:
       platform: time
-      at: "09:00:00"
+      at: "21:55:00"
     action:
-      service: rest_command.launch_unifi_camera
+      service: rest_command.quiet_hours_update
       data:
-        camera_id: "5f1a2b3c4d"
+        device_ip: "192.168.1.100"
+        enabled: true
+        start_hour: 22
+        start_minute: 0
+        end_hour: 7
+        end_minute: 0
 ```
 
 ### Example Automation
@@ -301,8 +415,32 @@ automation:
 
 ### Open Immich Frame
 ```bash
-curl -X POST http://192.168.1.100:3001/api/launch/com.immichframe.immichframe \
-  -H "X-API-Key: app-launcher-default-key"
+curl -X POST http://192.168.1.100:3001/api/launch \
+  -H "X-API-Key: app-launcher-default-key" \
+  -H "Content-Type: application/json" \
+  -d '{"packageName": "com.immichframe.immichframe"}'
+```
+
+### Enable Quiet Hours
+```bash
+curl -X POST http://192.168.1.100:3001/api/quiet-hours/enabled \
+  -H "X-API-Key: app-launcher-default-key" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true}'
+```
+
+### Set Quiet Hours Schedule
+```bash
+curl -X POST http://192.168.1.100:3001/api/quiet-hours \
+  -H "X-API-Key: app-launcher-default-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": true,
+    "startHour": 22,
+    "startMinute": 0,
+    "endHour": 7,
+    "endMinute": 0
+  }'
 ```
 
 ### Open Unifi Protect to Front Door Camera

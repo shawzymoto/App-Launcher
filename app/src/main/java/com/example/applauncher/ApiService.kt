@@ -21,10 +21,11 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
 
-class ApiService(private val context: Context) {
-    private val apiKeyManager = ApiKeyManager(context)
-    private val appLauncher = AppLauncher(context)
-    private val appManager = AppManager(context)
+class ApiService(private val appContext: Context) {
+    private val apiKeyManager = ApiKeyManager(appContext)
+    private val appLauncher = AppLauncher(appContext)
+    private val appManager = AppManager(appContext)
+    private val quietHoursManager = QuietHoursManager(appContext)
     private val tag = "ApiService"
     
     companion object {
@@ -255,6 +256,180 @@ class ApiService(private val context: Context) {
                     )
                 )
             }
+
+            // Get quiet-hours configuration and current state
+            get("/api/quiet-hours") {
+                if (!call.verifyApiKey()) {
+                    call.respond(
+                        HttpStatusCode.Unauthorized,
+                        ApiResponse<Unit>(
+                            success = false,
+                            message = "Unauthorized",
+                            error = "INVALID_API_KEY"
+                        )
+                    )
+                    return@get
+                }
+
+                val settings = quietHoursManager.getSettings()
+                call.respond(
+                    HttpStatusCode.OK,
+                    ApiResponse(
+                        success = true,
+                        message = "Quiet hours status retrieved",
+                        data = QuietHoursStatusData(
+                            enabled = settings.enabled,
+                            startHour = settings.startHour,
+                            startMinute = settings.startMinute,
+                            endHour = settings.endHour,
+                            endMinute = settings.endMinute,
+                            activeNow = quietHoursManager.isNowInQuietHours(settings)
+                        )
+                    )
+                )
+            }
+
+            // Update quiet-hours settings in one call.
+            post("/api/quiet-hours") {
+                if (!call.verifyApiKey()) {
+                    call.respond(
+                        HttpStatusCode.Unauthorized,
+                        ApiResponse<Unit>(
+                            success = false,
+                            message = "Unauthorized",
+                            error = "INVALID_API_KEY"
+                        )
+                    )
+                    return@post
+                }
+
+                try {
+                    val request = call.receive<QuietHoursUpdateRequest>()
+                    val current = quietHoursManager.getSettings()
+
+                    val newStartHour = request.startHour ?: current.startHour
+                    val newStartMinute = request.startMinute ?: current.startMinute
+                    val newEndHour = request.endHour ?: current.endHour
+                    val newEndMinute = request.endMinute ?: current.endMinute
+                    val newEnabled = request.enabled ?: current.enabled
+
+                    if (!isValidHourMinute(newStartHour, newStartMinute) ||
+                        !isValidHourMinute(newEndHour, newEndMinute)
+                    ) {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ApiResponse<Unit>(
+                                success = false,
+                                message = "Invalid time values",
+                                error = "INVALID_REQUEST"
+                            )
+                        )
+                        return@post
+                    }
+
+                    quietHoursManager.setStartTime(newStartHour, newStartMinute)
+                    quietHoursManager.setEndTime(newEndHour, newEndMinute)
+                    quietHoursManager.setEnabled(newEnabled)
+
+                    if (newEnabled) {
+                        quietHoursManager.scheduleAlarms()
+                        if (quietHoursManager.isNowInQuietHours()) {
+                            startQuietHoursOverlay()
+                        } else {
+                            stopQuietHoursOverlay()
+                        }
+                    } else {
+                        quietHoursManager.cancelAlarms()
+                        stopQuietHoursOverlay()
+                    }
+
+                    val updated = quietHoursManager.getSettings()
+                    call.respond(
+                        HttpStatusCode.OK,
+                        ApiResponse(
+                            success = true,
+                            message = "Quiet hours updated",
+                            data = QuietHoursStatusData(
+                                enabled = updated.enabled,
+                                startHour = updated.startHour,
+                                startMinute = updated.startMinute,
+                                endHour = updated.endHour,
+                                endMinute = updated.endMinute,
+                                activeNow = quietHoursManager.isNowInQuietHours(updated)
+                            )
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e(tag, "Error updating quiet hours", e)
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ApiResponse<Unit>(
+                            success = false,
+                            message = "Invalid request format",
+                            error = e.message ?: "INVALID_REQUEST"
+                        )
+                    )
+                }
+            }
+
+            // Toggle quiet-hours enabled state quickly.
+            post("/api/quiet-hours/enabled") {
+                if (!call.verifyApiKey()) {
+                    call.respond(
+                        HttpStatusCode.Unauthorized,
+                        ApiResponse<Unit>(
+                            success = false,
+                            message = "Unauthorized",
+                            error = "INVALID_API_KEY"
+                        )
+                    )
+                    return@post
+                }
+
+                try {
+                    val request = call.receive<QuietHoursEnabledRequest>()
+                    quietHoursManager.setEnabled(request.enabled)
+
+                    if (request.enabled) {
+                        quietHoursManager.scheduleAlarms()
+                        if (quietHoursManager.isNowInQuietHours()) {
+                            startQuietHoursOverlay()
+                        } else {
+                            stopQuietHoursOverlay()
+                        }
+                    } else {
+                        quietHoursManager.cancelAlarms()
+                        stopQuietHoursOverlay()
+                    }
+
+                    val settings = quietHoursManager.getSettings()
+                    call.respond(
+                        HttpStatusCode.OK,
+                        ApiResponse(
+                            success = true,
+                            message = "Quiet hours enabled state updated",
+                            data = QuietHoursStatusData(
+                                enabled = settings.enabled,
+                                startHour = settings.startHour,
+                                startMinute = settings.startMinute,
+                                endHour = settings.endHour,
+                                endMinute = settings.endMinute,
+                                activeNow = quietHoursManager.isNowInQuietHours(settings)
+                            )
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e(tag, "Error updating quiet-hours enabled flag", e)
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ApiResponse<Unit>(
+                            success = false,
+                            message = "Invalid request format",
+                            error = e.message ?: "INVALID_REQUEST"
+                        )
+                    )
+                }
+            }
         }
     }
 
@@ -283,7 +458,7 @@ class ApiService(private val context: Context) {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                     }
 
-                    val packageHandlers = context.packageManager.queryIntentActivities(packageScopedIntent, 0)
+                    val packageHandlers = appContext.packageManager.queryIntentActivities(packageScopedIntent, 0)
                     if (packageHandlers.isNotEmpty()) {
                         for (handler in packageHandlers) {
                             val activityInfo = handler.activityInfo ?: continue
@@ -294,7 +469,7 @@ class ApiService(private val context: Context) {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                             }
                             try {
-                                context.startActivity(explicitIntent)
+                                appContext.startActivity(explicitIntent)
                                 return true
                             } catch (e: Exception) {
                                 Log.w(tag, "Deep link handler failed: ${activityInfo.packageName}/${activityInfo.name}", e)
@@ -308,7 +483,7 @@ class ApiService(private val context: Context) {
                         addCategory(Intent.CATEGORY_BROWSABLE)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                     }
-                    val unscopedHandlers = context.packageManager.queryIntentActivities(unscopedIntent, 0)
+                    val unscopedHandlers = appContext.packageManager.queryIntentActivities(unscopedIntent, 0)
                     if (unscopedHandlers.isNotEmpty()) {
                         for (handler in unscopedHandlers) {
                             val activityInfo = handler.activityInfo ?: continue
@@ -319,7 +494,7 @@ class ApiService(private val context: Context) {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                             }
                             try {
-                                context.startActivity(explicitIntent)
+                                appContext.startActivity(explicitIntent)
                                 return true
                             } catch (e: Exception) {
                                 Log.w(tag, "Unscoped deep link handler failed: ${activityInfo.packageName}/${activityInfo.name}", e)
@@ -339,7 +514,7 @@ class ApiService(private val context: Context) {
                             putExtra(key, value)
                         }
                     }
-                    context.startActivity(intent)
+                    appContext.startActivity(intent)
                     true
                 }
                 else -> {
@@ -351,5 +526,17 @@ class ApiService(private val context: Context) {
             Log.e(tag, "Error launching app with options", e)
             false
         }
+    }
+
+    private fun isValidHourMinute(hour: Int, minute: Int): Boolean {
+        return hour in 0..23 && minute in 0..59
+    }
+
+    private fun startQuietHoursOverlay() {
+        QuietHoursActivity.start(appContext)
+    }
+
+    private fun stopQuietHoursOverlay() {
+        QuietHoursActivity.stop(appContext)
     }
 }

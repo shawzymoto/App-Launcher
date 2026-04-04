@@ -32,7 +32,23 @@ rest_command:
     headers:
       X-API-Key: !secret app_launcher_api_key
       Content-Type: "application/json"
-    payload: '{"packageName": "{{ package_name }}", "deepLink": "{{ deep_link "}}"}'
+    payload: '{"packageName": "{{ package_name }}", "deepLink": "{{ deep_link }}"}'
+
+  quiet_hours_set_enabled:
+    url: "http://{{ device_ip }}:3001/api/quiet-hours/enabled"
+    method: POST
+    headers:
+      X-API-Key: !secret app_launcher_api_key
+      Content-Type: "application/json"
+    payload: '{"enabled": {{ enabled | lower }}}'
+
+  quiet_hours_update:
+    url: "http://{{ device_ip }}:3001/api/quiet-hours"
+    method: POST
+    headers:
+      X-API-Key: !secret app_launcher_api_key
+      Content-Type: "application/json"
+    payload: '{"enabled": {{ enabled | lower }}, "startHour": {{ start_hour }}, "startMinute": {{ start_minute }}, "endHour": {{ end_hour }}, "endMinute": {{ end_minute }}}'
 ```
 
 ```yaml
@@ -47,6 +63,26 @@ service: rest_command.launch_app
 data:
   device_ip: "192.168.1.100"
   package_name: "com.immichframe.immichframe"
+```
+
+Quiet-hours examples:
+
+```yaml
+service: rest_command.quiet_hours_set_enabled
+data:
+  device_ip: "192.168.1.100"
+  enabled: true
+```
+
+```yaml
+service: rest_command.quiet_hours_update
+data:
+  device_ip: "192.168.1.100"
+  enabled: true
+  start_hour: 22
+  start_minute: 0
+  end_hour: 7
+  end_minute: 0
 ```
 
 ### 2. Reload the Configuration
@@ -147,6 +183,43 @@ automation:
           package_name: "com.ubnt.android.protect"
       - delay:
           seconds: 1
+```
+
+### Quiet Hours Schedule Automation
+
+Set quiet hours each evening for a specific device:
+
+```yaml
+automation:
+  - alias: "Set Tablet Quiet Hours"
+    trigger:
+      - platform: time
+        at: "21:55:00"
+    action:
+      - service: rest_command.quiet_hours_update
+        data:
+          device_ip: "192.168.1.100"
+          enabled: true
+          start_hour: 22
+          start_minute: 0
+          end_hour: 7
+          end_minute: 0
+```
+
+Disable quiet hours for maintenance windows:
+
+```yaml
+automation:
+  - alias: "Disable Quiet Hours on Demand"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.tablet_maintenance_mode
+        to: 'on'
+    action:
+      - service: rest_command.quiet_hours_set_enabled
+        data:
+          device_ip: "192.168.1.100"
+          enabled: false
 ```
 
 ## Script Examples

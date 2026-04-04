@@ -53,3 +53,27 @@ data class SupportedApp(
     val supportedActions: List<String> = emptyList(),
     val description: String? = null
 )
+
+@Serializable
+data class QuietHoursStatusData(
+    val enabled: Boolean,
+    val startHour: Int,
+    val startMinute: Int,
+    val endHour: Int,
+    val endMinute: Int,
+    val activeNow: Boolean
+)
+
+@Serializable
+data class QuietHoursUpdateRequest(
+    val enabled: Boolean? = null,
+    val startHour: Int? = null,
+    val startMinute: Int? = null,
+    val endHour: Int? = null,
+    val endMinute: Int? = null
+)
+
+@Serializable
+data class QuietHoursEnabledRequest(
+    val enabled: Boolean
+)
