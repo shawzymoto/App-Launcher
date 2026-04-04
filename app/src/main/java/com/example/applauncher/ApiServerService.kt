@@ -11,12 +11,16 @@ import io.ktor.server.engine.ApplicationEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class ApiServerService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var apiServer: ApplicationEngine? = null
+    private val quietHoursManager by lazy { QuietHoursManager(applicationContext) }
+    private var lastQuietActive: Boolean? = null
     private val tag = "ApiServerService"
 
     companion object {
@@ -31,6 +35,7 @@ class ApiServerService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification())
         Log.i(tag, "Foreground notification started")
         startApiServer()
+        startQuietHoursMonitor()
     }
 
     private fun startApiServer() {
@@ -59,6 +64,37 @@ class ApiServerService : Service() {
             Log.i(tag, "API server stopped")
         } catch (e: Exception) {
             Log.e(tag, "Error stopping API server", e)
+        }
+    }
+
+    private fun startQuietHoursMonitor() {
+        serviceScope.launch {
+            while (isActive) {
+                try {
+                    val settings = quietHoursManager.getSettings()
+                    val activeNow = quietHoursManager.isNowInQuietHours(settings)
+
+                    if (settings.enabled != true) {
+                        if (lastQuietActive != false) {
+                            QuietHoursActivity.stop(applicationContext)
+                            lastQuietActive = false
+                        }
+                    } else if (lastQuietActive != activeNow) {
+                        if (activeNow) {
+                            QuietHoursActivity.start(applicationContext)
+                            Log.i(tag, "Quiet hours monitor activated blackout overlay")
+                        } else {
+                            QuietHoursActivity.stop(applicationContext)
+                            Log.i(tag, "Quiet hours monitor deactivated blackout overlay")
+                        }
+                        lastQuietActive = activeNow
+                    }
+                } catch (e: Exception) {
+                    Log.w(tag, "Quiet hours monitor tick failed", e)
+                }
+
+                delay(30_000)
+            }
         }
     }
 

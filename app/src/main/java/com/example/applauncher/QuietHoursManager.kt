@@ -29,6 +29,7 @@ class QuietHoursManager(private val context: Context) {
         private const val KEY_START_MINUTE = "start_minute"
         private const val KEY_END_HOUR = "end_hour"
         private const val KEY_END_MINUTE = "end_minute"
+        private const val KEY_RESUME_APP_PACKAGE = "resume_app_package"
 
         private const val REQUEST_START = 4001
         private const val REQUEST_END = 4002
@@ -62,6 +63,20 @@ class QuietHoursManager(private val context: Context) {
             .putInt(KEY_END_HOUR, hour)
             .putInt(KEY_END_MINUTE, minute)
             .apply()
+    }
+
+    fun setResumeAppPackageName(packageName: String?) {
+        prefs.edit().apply {
+            if (packageName.isNullOrBlank()) {
+                remove(KEY_RESUME_APP_PACKAGE)
+            } else {
+                putString(KEY_RESUME_APP_PACKAGE, packageName)
+            }
+        }.apply()
+    }
+
+    fun getResumeAppPackageName(): String? {
+        return prefs.getString(KEY_RESUME_APP_PACKAGE, null)
     }
 
     fun isNowInQuietHours(settings: QuietHoursSettings = getSettings()): Boolean {

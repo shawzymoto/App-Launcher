@@ -19,4 +19,8 @@
     <string name="quiet_hours_end_button">Set End</string>
     <string name="quiet_hours_start_time_set">Quiet start set to %1$s</string>
     <string name="quiet_hours_end_time_set">Quiet end set to %1$s</string>
+    <string name="quiet_hours_resume_app_none">Resume App After Quiet Hours: None</string>
+    <string name="quiet_hours_resume_app_format">Resume App After Quiet Hours: %1$s</string>
+    <string name="quiet_hours_picker_title">Select app to launch when quiet hours end</string>
+    <string name="quiet_hours_picker_none_option">None (stay on launcher)</string>
 </resources>

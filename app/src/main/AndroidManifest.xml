@@ -41,7 +41,7 @@
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
             android:showOnLockScreen="true"
-            android:theme="@style/Theme.AppLauncher" />
+            android:theme="@style/Theme.AppLauncher.QuietHours" />
 
         <receiver
             android:name=".QuietHoursAlarmReceiver"

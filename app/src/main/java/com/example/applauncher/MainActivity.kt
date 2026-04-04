@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.app.role.RoleManager
+import androidx.appcompat.app.AlertDialog
 import android.widget.Button
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -39,7 +40,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var quietHoursStatusTextView: TextView
     private lateinit var quietHoursStartButton: Button
     private lateinit var quietHoursEndButton: Button
+    private lateinit var quietHoursResumeAppButton: Button
     private lateinit var quietHoursManager: QuietHoursManager
+    private var installedApps: List<AppInfo> = emptyList()
 
     companion object {
         private const val REQUEST_POST_NOTIFICATIONS = 1001
@@ -67,6 +70,7 @@ class MainActivity : AppCompatActivity() {
         quietHoursStatusTextView = findViewById(R.id.quiet_hours_status_text_view)
         quietHoursStartButton = findViewById(R.id.quiet_hours_start_button)
         quietHoursEndButton = findViewById(R.id.quiet_hours_end_button)
+        quietHoursResumeAppButton = findViewById(R.id.quiet_hours_resume_app_button)
 
         setLauncherButton.setOnClickListener {
             requestLauncherRole()
@@ -76,6 +80,9 @@ class MainActivity : AppCompatActivity() {
         }
         quietHoursEndButton.setOnClickListener {
             showTimePicker(isStartTime = false)
+        }
+        quietHoursResumeAppButton.setOnClickListener {
+            showResumeAppPicker()
         }
 
         quietHoursSwitch.setOnCheckedChangeListener { _: CompoundButton, isChecked: Boolean ->
@@ -210,6 +217,7 @@ class MainActivity : AppCompatActivity() {
             val apps = withContext(Dispatchers.Default) {
                 appManager.getInstalledApps()
             }
+            installedApps = apps
             val appNames = apps.map { it.name }
 
             val adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_list_item_1, appNames)
@@ -221,6 +229,8 @@ class MainActivity : AppCompatActivity() {
                     appLauncher.launchApp(selectedApp.packageName)
                 }
             }
+
+            refreshQuietHoursUi()
         }
     }
 
@@ -251,6 +261,32 @@ class MainActivity : AppCompatActivity() {
             R.string.quiet_hours_end_time_set,
             formatTime(settings.endHour, settings.endMinute)
         )
+
+        val resumePackage = quietHoursManager.getResumeAppPackageName()
+        val resumeName = installedApps.firstOrNull { it.packageName == resumePackage }?.name
+        if (resumeName != null) {
+            quietHoursResumeAppButton.text = getString(R.string.quiet_hours_resume_app_format, resumeName)
+        } else {
+            quietHoursResumeAppButton.text = getString(R.string.quiet_hours_resume_app_none)
+        }
+    }
+
+    private fun showResumeAppPicker() {
+        val pickerItems = mutableListOf(getString(R.string.quiet_hours_picker_none_option))
+        pickerItems.addAll(installedApps.map { it.name })
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.quiet_hours_picker_title))
+            .setItems(pickerItems.toTypedArray()) { _, which ->
+                if (which == 0) {
+                    quietHoursManager.setResumeAppPackageName(null)
+                } else {
+                    val app = installedApps[which - 1]
+                    quietHoursManager.setResumeAppPackageName(app.packageName)
+                }
+                refreshQuietHoursUi()
+            }
+            .show()
     }
 
     private fun showTimePicker(isStartTime: Boolean) {
