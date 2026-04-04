@@ -13,8 +13,11 @@ class QuietHoursActivity : AppCompatActivity() {
 
     companion object {
         private const val EXTRA_CLOSE = "extra_close"
+        @Volatile
+        private var isOverlayVisible = false
 
         fun start(context: Context) {
+            if (isOverlayVisible) return
             val intent = Intent(context, QuietHoursActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             }
@@ -22,6 +25,7 @@ class QuietHoursActivity : AppCompatActivity() {
         }
 
         fun stop(context: Context) {
+            if (!isOverlayVisible) return
             val intent = Intent(context, QuietHoursActivity::class.java).apply {
                 putExtra(EXTRA_CLOSE, true)
                 addFlags(
@@ -32,6 +36,16 @@ class QuietHoursActivity : AppCompatActivity() {
             }
             context.startActivity(intent)
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        isOverlayVisible = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        isOverlayVisible = false
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -333,11 +333,6 @@ class ApiService(private val appContext: Context) {
 
                     if (newEnabled) {
                         quietHoursManager.scheduleAlarms()
-                        if (quietHoursManager.isNowInQuietHours()) {
-                            startQuietHoursOverlay()
-                        } else {
-                            stopQuietHoursOverlay()
-                        }
                     } else {
                         quietHoursManager.cancelAlarms()
                         stopQuietHoursOverlay()
@@ -392,11 +387,6 @@ class ApiService(private val appContext: Context) {
 
                     if (request.enabled) {
                         quietHoursManager.scheduleAlarms()
-                        if (quietHoursManager.isNowInQuietHours()) {
-                            startQuietHoursOverlay()
-                        } else {
-                            stopQuietHoursOverlay()
-                        }
                     } else {
                         quietHoursManager.cancelAlarms()
                         stopQuietHoursOverlay()

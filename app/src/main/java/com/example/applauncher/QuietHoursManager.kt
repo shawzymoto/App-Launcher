@@ -4,6 +4,8 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.util.Log
 import java.util.Calendar
 
 data class QuietHoursSettings(
@@ -17,6 +19,7 @@ data class QuietHoursSettings(
 class QuietHoursManager(private val context: Context) {
 
     companion object {
+        private const val TAG = "QuietHoursManager"
         const val ACTION_QUIET_HOURS_START = "com.example.applauncher.action.QUIET_HOURS_START"
         const val ACTION_QUIET_HOURS_END = "com.example.applauncher.action.QUIET_HOURS_END"
 
@@ -89,18 +92,53 @@ class QuietHoursManager(private val context: Context) {
         val startAt = nextTriggerAt(settings.startHour, settings.startMinute)
         val endAt = nextTriggerAt(settings.endHour, settings.endMinute)
 
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC,
-            startAt,
-            startPendingIntent()
-        )
+        try {
+            val exactAllowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                alarmManager.canScheduleExactAlarms()
+            } else {
+                true
+            }
 
-        // Wake at quiet-hours end so screen can come back on schedule.
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            endAt,
-            endPendingIntent()
-        )
+            if (exactAllowed) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC,
+                    startAt,
+                    startPendingIntent()
+                )
+
+                // Wake at quiet-hours end so screen can come back on schedule.
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    endAt,
+                    endPendingIntent()
+                )
+            } else {
+                Log.w(TAG, "Exact alarms not permitted; using inexact idle alarms for quiet hours")
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC,
+                    startAt,
+                    startPendingIntent()
+                )
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    endAt,
+                    endPendingIntent()
+                )
+            }
+        } catch (se: SecurityException) {
+            // Some OEM builds can still throw even when canScheduleExactAlarms() is unreliable.
+            Log.w(TAG, "Alarm scheduling restricted; falling back to inexact alarms", se)
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC,
+                startAt,
+                startPendingIntent()
+            )
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                endAt,
+                endPendingIntent()
+            )
+        }
     }
 
     fun cancelAlarms() {

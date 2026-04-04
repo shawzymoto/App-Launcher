@@ -87,13 +87,11 @@ class MainActivity : AppCompatActivity() {
                 QuietHoursActivity.stop(this)
             }
             refreshQuietHoursUi()
-            applyCurrentQuietHoursState()
         }
 
         ensureNotificationPermissionAndStartService()
         updateLauncherModeStatus()
         refreshQuietHoursUi()
-        applyCurrentQuietHoursState()
         loadAndDisplayApps()
     }
 
@@ -101,7 +99,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         updateLauncherModeStatus()
         refreshQuietHoursUi()
-        applyCurrentQuietHoursState()
+        if (quietHoursManager.getSettings().enabled) {
+            quietHoursManager.scheduleAlarms()
+        }
     }
 
     private fun ensureNotificationPermissionAndStartService() {
@@ -153,7 +153,7 @@ class MainActivity : AppCompatActivity() {
                 val roleManager = getSystemService(RoleManager::class.java)
                 if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
                     if (roleManager.isRoleHeld(RoleManager.ROLE_HOME)) {
-                        Toast.makeText(this, getString(R.string.launcher_already_default), Toast.LENGTH_SHORT).show()
+                        openHomeLauncherSettings()
                         return
                     }
                     val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)
@@ -163,7 +163,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             // Fallback for older Android versions and devices without role API support.
-            startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+            openHomeLauncherSettings()
         } catch (e: Exception) {
             Toast.makeText(this, "Unable to open launcher settings: ${e.message}", Toast.LENGTH_LONG).show()
         }
@@ -171,22 +171,38 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateLauncherModeStatus() {
         val isDefaultLauncher = isDefaultHomeApp()
+        val currentLauncherPackage = getCurrentHomePackage()
+
         if (isDefaultLauncher) {
-            launcherModeStatusTextView.text = getString(R.string.launcher_mode_enabled)
-            setLauncherButton.text = getString(R.string.launcher_is_default_button)
+            launcherModeStatusTextView.text = getString(
+                R.string.launcher_mode_enabled_current,
+                currentLauncherPackage ?: packageName
+            )
+            setLauncherButton.text = getString(R.string.manage_launcher_mode_button)
         } else {
-            launcherModeStatusTextView.text = getString(R.string.launcher_mode_not_enabled)
+            launcherModeStatusTextView.text = getString(
+                R.string.launcher_mode_not_enabled_current,
+                currentLauncherPackage ?: getString(R.string.unknown_launcher)
+            )
             setLauncherButton.text = getString(R.string.enable_launcher_mode_button)
         }
     }
 
     private fun isDefaultHomeApp(): Boolean {
+        val currentHomePackage = getCurrentHomePackage()
+        return currentHomePackage == packageName
+    }
+
+    private fun getCurrentHomePackage(): String? {
         val intent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
         }
         val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
-        val currentHomePackage = resolveInfo?.activityInfo?.packageName
-        return currentHomePackage == packageName
+        return resolveInfo?.activityInfo?.packageName
+    }
+
+    private fun openHomeLauncherSettings() {
+        startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
     }
 
     private fun loadAndDisplayApps() {
@@ -255,28 +271,11 @@ class MainActivity : AppCompatActivity() {
                     quietHoursManager.scheduleAlarms()
                 }
                 refreshQuietHoursUi()
-                applyCurrentQuietHoursState()
             },
             initialHour,
             initialMinute,
             android.text.format.DateFormat.is24HourFormat(this)
         ).show()
-    }
-
-    private fun applyCurrentQuietHoursState() {
-        val settings = quietHoursManager.getSettings()
-        if (!settings.enabled) {
-            QuietHoursActivity.stop(this)
-            return
-        }
-
-        quietHoursManager.scheduleAlarms()
-
-        if (quietHoursManager.isNowInQuietHours(settings)) {
-            QuietHoursActivity.start(this)
-        } else {
-            QuietHoursActivity.stop(this)
-        }
     }
 
     private fun formatTime(hour: Int, minute: Int): String {

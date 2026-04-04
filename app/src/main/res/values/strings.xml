@@ -4,9 +4,13 @@
     <string name="app_launcher_title">Installed Apps</string>
     <string name="launcher_mode_enabled">Launcher mode is enabled. This app is your default Home app.</string>
     <string name="launcher_mode_not_enabled">Launcher mode is disabled. Background app switching may be blocked by Android.</string>
+    <string name="launcher_mode_enabled_current">Launcher mode is enabled. Current Home app: %1$s</string>
+    <string name="launcher_mode_not_enabled_current">Launcher mode is disabled. Current Home app: %1$s</string>
     <string name="enable_launcher_mode_button">Enable Launcher Mode</string>
+    <string name="manage_launcher_mode_button">Manage Default Launcher</string>
     <string name="launcher_is_default_button">Launcher Is Default</string>
     <string name="launcher_already_default">This app is already your default launcher</string>
+    <string name="unknown_launcher">unknown</string>
     <string name="quiet_hours_title">Quiet Hours</string>
     <string name="quiet_hours_enable">Enable daily quiet hours</string>
     <string name="quiet_hours_off">Quiet hours are off</string>
