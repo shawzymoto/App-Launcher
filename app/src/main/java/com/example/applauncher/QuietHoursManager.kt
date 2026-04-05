@@ -30,6 +30,9 @@ class QuietHoursManager(private val context: Context) {
         private const val KEY_END_HOUR = "end_hour"
         private const val KEY_END_MINUTE = "end_minute"
         private const val KEY_RESUME_APP_PACKAGE = "resume_app_package"
+        private const val KEY_PENDING_RESUME_APP_PACKAGE = "pending_resume_app_package"
+        private const val KEY_PENDING_RESUME_REQUESTED_AT = "pending_resume_requested_at"
+        private const val PENDING_RESUME_MAX_AGE_MS = 5 * 60 * 1000L
 
         private const val REQUEST_START = 4001
         private const val REQUEST_END = 4002
@@ -69,6 +72,8 @@ class QuietHoursManager(private val context: Context) {
         prefs.edit().apply {
             if (packageName.isNullOrBlank()) {
                 remove(KEY_RESUME_APP_PACKAGE)
+                remove(KEY_PENDING_RESUME_APP_PACKAGE)
+                remove(KEY_PENDING_RESUME_REQUESTED_AT)
             } else {
                 putString(KEY_RESUME_APP_PACKAGE, packageName)
             }
@@ -77,6 +82,47 @@ class QuietHoursManager(private val context: Context) {
 
     fun getResumeAppPackageName(): String? {
         return prefs.getString(KEY_RESUME_APP_PACKAGE, null)
+    }
+
+    fun queuePendingResumeAppLaunch(): Boolean {
+        val packageName = getResumeAppPackageName() ?: return false
+        prefs.edit()
+            .putString(KEY_PENDING_RESUME_APP_PACKAGE, packageName)
+            .putLong(KEY_PENDING_RESUME_REQUESTED_AT, System.currentTimeMillis())
+            .apply()
+        Log.i(TAG, "Queued pending resume app launch for $packageName")
+        return true
+    }
+
+    fun getPendingResumeAppLaunch(): String? {
+        val packageName = prefs.getString(KEY_PENDING_RESUME_APP_PACKAGE, null) ?: return null
+        val requestedAt = prefs.getLong(KEY_PENDING_RESUME_REQUESTED_AT, 0L)
+
+        if (requestedAt > 0L && System.currentTimeMillis() - requestedAt > PENDING_RESUME_MAX_AGE_MS) {
+            Log.i(TAG, "Dropping stale pending resume app launch for $packageName")
+            clearPendingResumeAppLaunch()
+            return null
+        }
+
+        return packageName
+    }
+
+    fun consumePendingResumeAppLaunch(): String? {
+        val packageName = getPendingResumeAppLaunch() ?: return null
+
+        prefs.edit()
+            .remove(KEY_PENDING_RESUME_APP_PACKAGE)
+            .remove(KEY_PENDING_RESUME_REQUESTED_AT)
+            .apply()
+
+        return packageName
+    }
+
+    fun clearPendingResumeAppLaunch() {
+        prefs.edit()
+            .remove(KEY_PENDING_RESUME_APP_PACKAGE)
+            .remove(KEY_PENDING_RESUME_REQUESTED_AT)
+            .apply()
     }
 
     fun isNowInQuietHours(settings: QuietHoursSettings = getSettings()): Boolean {
@@ -160,6 +206,7 @@ class QuietHoursManager(private val context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.cancel(startPendingIntent())
         alarmManager.cancel(endPendingIntent())
+        clearPendingResumeAppLaunch()
     }
 
     private fun startPendingIntent(): PendingIntent {

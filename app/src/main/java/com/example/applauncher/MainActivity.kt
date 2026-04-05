@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.app.role.RoleManager
+import android.util.Log
 import androidx.appcompat.app.AlertDialog
 import android.widget.Button
 import android.widget.AdapterView
@@ -30,6 +31,9 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
+    private var pendingResumeLaunchAttempts = 0
+    private var pendingResumeRetryScheduled = false
+
     private lateinit var appLauncher: AppLauncher
     private lateinit var appManager: AppManager
     private lateinit var listView: ListView
@@ -46,6 +50,9 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val REQUEST_POST_NOTIFICATIONS = 1001
+        private const val TAG = "MainActivity"
+        private const val PENDING_RESUME_RETRY_DELAY_MS = 400L
+        private const val MAX_PENDING_RESUME_ATTEMPTS = 6
     }
 
     private val homeRoleLauncher = registerForActivityResult(
@@ -109,6 +116,11 @@ class MainActivity : AppCompatActivity() {
         if (quietHoursManager.getSettings().enabled) {
             quietHoursManager.scheduleAlarms()
         }
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        maybeLaunchPendingResumeApp()
     }
 
     private fun ensureNotificationPermissionAndStartService() {
@@ -312,6 +324,52 @@ class MainActivity : AppCompatActivity() {
             initialMinute,
             android.text.format.DateFormat.is24HourFormat(this)
         ).show()
+    }
+
+    private fun maybeLaunchPendingResumeApp() {
+        val resumePackage = quietHoursManager.getPendingResumeAppLaunch() ?: run {
+            pendingResumeLaunchAttempts = 0
+            pendingResumeRetryScheduled = false
+            return
+        }
+
+        if (quietHoursManager.isNowInQuietHours()) {
+            Log.i(TAG, "Skipping pending resume app launch because quiet hours are still active")
+            return
+        }
+
+        val launched = appLauncher.launchApp(resumePackage)
+        if (launched) {
+            quietHoursManager.clearPendingResumeAppLaunch()
+            pendingResumeLaunchAttempts = 0
+            pendingResumeRetryScheduled = false
+            Log.i(TAG, "Launched pending resume app: $resumePackage")
+        } else {
+            val lastError = appLauncher.getLastLaunchError()
+            if (
+                lastError == "BACKGROUND_ACTIVITY_START_BLOCKED" &&
+                pendingResumeLaunchAttempts < MAX_PENDING_RESUME_ATTEMPTS
+            ) {
+                pendingResumeLaunchAttempts += 1
+                if (!pendingResumeRetryScheduled) {
+                    pendingResumeRetryScheduled = true
+                    window.decorView.postDelayed({
+                        pendingResumeRetryScheduled = false
+                        maybeLaunchPendingResumeApp()
+                    }, PENDING_RESUME_RETRY_DELAY_MS)
+                }
+                Log.i(
+                    TAG,
+                    "Retrying pending resume app launch: $resumePackage attempt=$pendingResumeLaunchAttempts"
+                )
+                return
+            }
+
+            quietHoursManager.clearPendingResumeAppLaunch()
+            pendingResumeLaunchAttempts = 0
+            pendingResumeRetryScheduled = false
+            Log.w(TAG, "Failed to launch pending resume app: $resumePackage error=$lastError")
+        }
     }
 
     private fun formatTime(hour: Int, minute: Int): String {

@@ -84,6 +84,7 @@ class ApiServerService : Service() {
                             QuietHoursActivity.start(applicationContext)
                             Log.i(tag, "Quiet hours monitor activated blackout overlay")
                         } else {
+                            quietHoursManager.queuePendingResumeAppLaunch()
                             QuietHoursActivity.stop(applicationContext)
                             Log.i(tag, "Quiet hours monitor deactivated blackout overlay")
                         }

@@ -3,8 +3,6 @@ package com.example.applauncher
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Handler
-import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 
@@ -38,24 +36,11 @@ class QuietHoursAlarmReceiver : BroadcastReceiver() {
             QuietHoursManager.ACTION_QUIET_HOURS_END -> {
                 Log.i(TAG, "Quiet hours end alarm fired")
                 wakeScreen(context)
+                manager.queuePendingResumeAppLaunch()
                 QuietHoursActivity.stop(context)
-                launchConfiguredResumeApp(context, manager)
                 manager.scheduleAlarms()
             }
         }
-    }
-
-    private fun launchConfiguredResumeApp(context: Context, manager: QuietHoursManager) {
-        val resumePackage = manager.getResumeAppPackageName() ?: return
-        val appLauncher = AppLauncher(context)
-
-        // Slight delay helps ensure blackout overlay is dismissed before app launch.
-        Handler(Looper.getMainLooper()).postDelayed({
-            val launched = appLauncher.launchApp(resumePackage)
-            if (!launched) {
-                Log.w(TAG, "Failed to launch configured resume app: $resumePackage")
-            }
-        }, 750)
     }
 
     private fun wakeScreen(context: Context) {
