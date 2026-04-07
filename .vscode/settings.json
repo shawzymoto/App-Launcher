@@ -1,0 +1,6 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "./scripts/install-release-to-device.sh": true,
+        "true": true
+    }
+}

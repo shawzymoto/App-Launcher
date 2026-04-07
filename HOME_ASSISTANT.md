@@ -13,59 +13,116 @@ Complete guide for integrating the App Launcher REST API with Home Assistant.
 
 ### 1. Add REST Commands
 
-Add the following to your Home Assistant `configuration.yaml`:
+Add a **single generic command** to your Home Assistant `configuration.yaml`. The device IP and app are passed as variables each time the command is called, so one command works across all devices and apps:
 
 ```yaml
+# configuration.yaml
 rest_command:
-  launch_immich_frame:
-    url: "http://192.168.1.100:3001/api/launch/app.immich"
+  launch_app:
+    url: "http://{{ device_ip }}:3001/api/launch"
     method: POST
     headers:
-      X-API-Key: "app-launcher-default-key"
+      X-API-Key: !secret app_launcher_api_key
+      Content-Type: "application/json"
+    payload: '{"packageName": "{{ package_name }}"}'
 
-  launch_unifi_protect:
-    url: "http://192.168.1.100:3001/api/launch/com.ubnt.android.protect"
+  launch_app_deeplink:
+    url: "http://{{ device_ip }}:3001/api/launch"
     method: POST
     headers:
-      X-API-Key: "app-launcher-default-key"
+      X-API-Key: !secret app_launcher_api_key
+      Content-Type: "application/json"
+    payload: '{"packageName": "{{ package_name }}", "deepLink": "{{ deep_link }}"}'
+
+  quiet_hours_set_enabled:
+    url: "http://{{ device_ip }}:3001/api/quiet-hours/enabled"
+    method: POST
+    headers:
+      X-API-Key: !secret app_launcher_api_key
+      Content-Type: "application/json"
+    payload: '{"enabled": {{ enabled | lower }}}'
+
+  quiet_hours_update:
+    url: "http://{{ device_ip }}:3001/api/quiet-hours"
+    method: POST
+    headers:
+      X-API-Key: !secret app_launcher_api_key
+      Content-Type: "application/json"
+    payload: '{"enabled": {{ enabled | lower }}, "startHour": {{ start_hour }}, "startMinute": {{ start_minute }}, "endHour": {{ end_hour }}, "endMinute": {{ end_minute }}}'
 ```
 
-Replace `192.168.1.100` with your device's IP address.
+```yaml
+# secrets.yaml
+app_launcher_api_key: "app-launcher-default-key"  # Change this!
+```
 
-### 2. Test the Connection
+Call it like this (from automations, scripts, or Developer Tools):
 
-Use the Developer Tools - Services in Home Assistant:
-1. Go to Developer Tools > Services
-2. Select `rest_command.launch_immich_frame`
-3. Click "Call Service"
-4. You should see the app launch on your device
+```yaml
+service: rest_command.launch_app
+data:
+  device_ip: "192.168.1.100"
+  package_name: "com.immichframe.immichframe"
+```
+
+Quiet-hours examples:
+
+```yaml
+service: rest_command.quiet_hours_set_enabled
+data:
+  device_ip: "192.168.1.100"
+  enabled: true
+```
+
+```yaml
+service: rest_command.quiet_hours_update
+data:
+  device_ip: "192.168.1.100"
+  enabled: true
+  start_hour: 22
+  start_minute: 0
+  end_hour: 7
+  end_minute: 0
+```
+
+### 2. Reload the Configuration
+
+After saving `configuration.yaml`, HA does **not** pick up changes automatically. You must reload:
+
+1. Go to **Developer Tools > YAML**
+2. Click **Reload All YAML** (or scroll down and click **Reload** next to the specific domain — "REST Command" or "Scripts")
+
+If you don't see those buttons, a full restart also works: **Settings > System > Restart**.
+
+### 3. Test the Connection
+
+`rest_command` entries appear in Developer Tools as services. In newer versions of HA (2024.2+) **Services** was renamed to **Actions**:
+
+1. Go to **Developer Tools > Actions** (or **Services** on older HA)
+2. In the Action/Service field type `rest_command.launch_app`
+3. Switch to **YAML mode** (toggle in the top-right of the card) and enter:
+```yaml
+service: rest_command.launch_app
+data:
+  device_ip: "192.168.1.100"
+  package_name: "com.immichframe.immichframe"
+```
+4. Click **Perform Action** (or **Call Service**) — you should see the app launch on your device
+
+> **Note:** Scripts defined in `configuration.yaml` show up as `script.<script_name>` in the same Actions/Services panel, but they only appear after reloading. If a script is missing, double-check the YAML indentation — `script:` must be at the root level (no leading spaces).
 
 ## Advanced Examples
 
 ### Launch Unifi Protect with Specific Camera
 
-First, find your camera ID from the Unifi Protect app or API.
+First, find your camera ID from the Unifi Protect app or API. Then use `launch_app_deeplink` — no extra command definition needed:
 
 ```yaml
-rest_command:
-  launch_unifi_camera:
-    url: "http://192.168.1.100:3001/api/launch"
-    method: POST
-    headers:
-      X-API-Key: "app-launcher-default-key"
-      Content-Type: "application/json"
-    payload: >-
-      {
-        "packageName": "com.ubnt.android.protect",
-        "deepLink": "unifi-protect://camera/{{ camera_id }}"
-      }
-```
-
-Use in automation:
-```yaml
-service: rest_command.launch_unifi_camera
+service: rest_command.launch_app_deeplink
 data:
-  camera_id: "5f1a2b3c4d"  # Replace with actual camera ID
+  device_ip: "192.168.1.100"
+  package_name: "com.ubnt.android.protect"
+  deep_link: "unifi-protect://camera/5f1a2b3c4d"  # Replace with actual camera ID
 ```
 
 ### Motion Detection Automation
@@ -82,7 +139,10 @@ automation:
         to: 'on'
     condition: []
     action:
-      - service: rest_command.launch_unifi_protect
+      - service: rest_command.launch_app
+        data:
+          device_ip: "192.168.1.100"
+          package_name: "com.ubnt.android.protect"
       - delay:
           seconds: 2
     mode: single
@@ -99,7 +159,10 @@ automation:
       platform: time
       at: "07:00:00"
     action:
-      - service: rest_command.launch_immich_frame
+      - service: rest_command.launch_app
+        data:
+          device_ip: "192.168.1.100"
+          package_name: "com.immichframe.immichframe"
 ```
 
 ### Door Open Detection
@@ -114,34 +177,81 @@ automation:
         entity_id: binary_sensor.front_door_contact
         to: 'on'
     action:
-      - service: rest_command.launch_unifi_protect
+      - service: rest_command.launch_app
+        data:
+          device_ip: "192.168.1.100"
+          package_name: "com.ubnt.android.protect"
       - delay:
           seconds: 1
+```
+
+### Quiet Hours Schedule Automation
+
+Set quiet hours each evening for a specific device:
+
+```yaml
+automation:
+  - alias: "Set Tablet Quiet Hours"
+    trigger:
+      - platform: time
+        at: "21:55:00"
+    action:
+      - service: rest_command.quiet_hours_update
+        data:
+          device_ip: "192.168.1.100"
+          enabled: true
+          start_hour: 22
+          start_minute: 0
+          end_hour: 7
+          end_minute: 0
+```
+
+Disable quiet hours for maintenance windows:
+
+```yaml
+automation:
+  - alias: "Disable Quiet Hours on Demand"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.tablet_maintenance_mode
+        to: 'on'
+    action:
+      - service: rest_command.quiet_hours_set_enabled
+        data:
+          device_ip: "192.168.1.100"
+          enabled: false
 ```
 
 ## Script Examples
 
 ### Manual Launch Script
 
-Create a script to launch apps from Home Assistant UI:
+Scripts are a great way to give each device+app combination a friendly name without duplicating `rest_command` definitions:
 
 ```yaml
 script:
-  launch_unifi:
-    description: "Launch Unifi Protect security app"
+  launch_unifi_living_room:
+    description: "Launch Unifi Protect on the living room tablet"
     sequence:
-      - service: rest_command.launch_unifi_protect
-        data: {}
+      - service: rest_command.launch_app
+        data:
+          device_ip: "192.168.1.100"
+          package_name: "com.ubnt.android.protect"
 
-  launch_immich:
-    description: "Launch Immich photo frame"
+  launch_immich_bedroom:
+    description: "Launch Immich photo frame on the bedroom tablet"
     sequence:
-      - service: rest_command.launch_immich_frame
-        data: {}
+      - service: rest_command.launch_app
+        data:
+          device_ip: "192.168.1.101"
+          package_name: "com.immichframe.immichframe"
 
   launch_unifi_camera:
-    description: "Launch Unifi Protect and show specific camera"
+    description: "Launch Unifi Protect and show a specific camera"
     fields:
+      device_ip:
+        description: "IP address of the target tablet"
+        example: "192.168.1.100"
       camera_id:
         description: "Camera ID to show"
         example: "5f1a2b3c4d"
@@ -149,20 +259,23 @@ script:
         description: "Camera name for logging"
         example: "Front Door"
     sequence:
-      - service: rest_command.launch_unifi_camera
+      - service: rest_command.launch_app_deeplink
         data:
-          camera_id: "{{ camera_id }}"
+          device_ip: "{{ device_ip }}"
+          package_name: "com.ubnt.android.protect"
+          deep_link: "unifi-protect://camera/{{ camera_id }}"
       - service: notify.persistent_notification
         data:
           title: "Camera Launched"
           message: "Opened {{ camera_name }} camera in Unifi Protect"
 ```
 
-Then call from automations:
+Call from automations:
 ```yaml
 action:
   - service: script.launch_unifi_camera
     data:
+      device_ip: "192.168.1.100"
       camera_id: "5f1a2b3c4d"
       camera_name: "Front Door"
 ```
@@ -198,12 +311,13 @@ Create a button card for app launching:
 
 ```yaml
 type: custom:button-card
-entity: switch.app_launcher_switch  # Create a dummy switch/template
 name: "Launch Unifi Protect"
 tap_action:
   action: call-service
-  service: rest_command.launch_unifi_protect
-  data: {}
+  service: rest_command.launch_app
+  service_data:
+    device_ip: "192.168.1.100"
+    package_name: "com.ubnt.android.protect"
 state_color: true
 color_type: icon
 icon: mdi:shield-camera
@@ -217,7 +331,10 @@ name: Launch Unifi
 icon: mdi:shield-camera
 tap_action:
   action: call-service
-  service: rest_command.launch_unifi_protect
+  service: rest_command.launch_app
+  service_data:
+    device_ip: "192.168.1.100"
+    package_name: "com.ubnt.android.protect"
 ```
 
 ## Troubleshooting
@@ -257,8 +374,10 @@ curl http://192.168.1.100:3001/api/apps \
   -H "X-API-Key: app-launcher-default-key"
 
 # Launch app
-curl -X POST http://192.168.1.100:3001/api/launch/app.immich \
-  -H "X-API-Key: app-launcher-default-key"
+curl -X POST http://192.168.1.100:3001/api/launch \
+  -H "X-API-Key: app-launcher-default-key" \
+  -H "Content-Type: application/json" \
+  -d '{"packageName": "app.immich"}'
 
 # Launch with deep link
 curl -X POST http://192.168.1.100:3001/api/launch \
@@ -293,48 +412,59 @@ Look for errors related to `rest_command`.
 
 ### Using secrets.yaml
 
-Instead of hardcoding the API key:
-
-```yaml
-# configuration.yaml
-rest_command:
-  launch_unifi_protect:
-    url: "http://192.168.1.100:3001/api/launch/com.ubnt.android.protect"
-    method: POST
-    headers:
-      X-API-Key: !secret app_launcher_api_key
-```
+The generic command already uses `!secret` — just set the key in `secrets.yaml`:
 
 ```yaml
 # secrets.yaml
 app_launcher_api_key: "your-secure-api-key-here"
 ```
 
+If you run different API keys on different devices, add one entry per device:
+
+```yaml
+# secrets.yaml
+app_launcher_api_key_living_room: "key-for-device-1"
+app_launcher_api_key_bedroom: "key-for-device-2"
+```
+
+Then define a separate `rest_command` per key, or pass the key as a variable (note: `!secret` cannot be templated, so per-key commands are the easiest approach in that case).
+
 ## Multiple Devices
 
-If you have multiple Android devices with App Launcher:
+Because `device_ip` is a variable, you need **no extra `rest_command` entries** for additional devices — just pass a different IP:
 
-```yaml
-rest_command:
-  launch_unifi_bedroom:
-    url: "http://192.168.1.101:3001/api/launch/com.ubnt.android.protect"
-    method: POST
-    headers:
-      X-API-Key: !secret app_launcher_api_key
-
-  launch_unifi_living_room:
-    url: "http://192.168.1.102:3001/api/launch/com.ubnt.android.protect"
-    method: POST
-    headers:
-      X-API-Key: !secret app_launcher_api_key
-```
-
-Then use in automations:
 ```yaml
 action:
-  - service: rest_command.launch_unifi_bedroom
-  - service: rest_command.launch_unifi_living_room
+  # Launch on every tablet at once
+  - service: rest_command.launch_app
+    data:
+      device_ip: "192.168.1.100"
+      package_name: "com.ubnt.android.protect"
+  - service: rest_command.launch_app
+    data:
+      device_ip: "192.168.1.101"
+      package_name: "com.ubnt.android.protect"
+  - service: rest_command.launch_app
+    data:
+      device_ip: "192.168.1.102"
+      package_name: "com.ubnt.android.protect"
 ```
+
+For cleaner automations, define device IPs once as `input_text` helpers (Settings > Helpers) and reference them:
+
+```yaml
+action:
+  - service: rest_command.launch_app
+    data:
+      device_ip: "{{ states('input_text.tablet_living_room_ip') }}"
+      package_name: "com.ubnt.android.protect"
+  - service: rest_command.launch_app
+    data:
+      device_ip: "{{ states('input_text.tablet_bedroom_ip') }}"
+      package_name: "com.ubnt.android.protect"
+```
+
+This lets you update IPs from the HA UI if a device gets a new address, with no `configuration.yaml` changes.
 
 ## Performance Tips
 
