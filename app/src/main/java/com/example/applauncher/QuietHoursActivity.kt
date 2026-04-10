@@ -5,14 +5,21 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
+import android.widget.FrameLayout
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 
 class QuietHoursActivity : AppCompatActivity() {
 
+    private val quietHoursManager by lazy { QuietHoursManager(this) }
+
     companion object {
+        const val EXTRA_ALLOW_ONE_QUIET_RESUME = "extra_allow_one_quiet_resume"
         private const val EXTRA_CLOSE = "extra_close"
+        private const val FALLBACK_TIMEOUT_MS = 30_000L
+        private const val TIMEOUT_MARGIN_MS = 1_000L
         @Volatile
         private var isOverlayVisible = false
 
@@ -51,8 +58,15 @@ class QuietHoursActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (handleCloseIntent(intent)) return
+        if (!shouldAllowQuietOverlay()) {
+            finish()
+            return
+        }
 
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+        )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
@@ -66,11 +80,19 @@ class QuietHoursActivity : AppCompatActivity() {
                 or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
         )
 
-        setContentView(View(this).apply {
+        val rootView = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             isClickable = true
             isFocusable = true
-        })
+        }
+
+        rootView.setOnClickListener {
+            if (shouldAllowQuietOverlay()) {
+                unlockTemporarilyAndOpenLauncher()
+            }
+        }
+
+        setContentView(rootView)
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -81,6 +103,13 @@ class QuietHoursActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (!shouldAllowQuietOverlay()) {
+            finish()
+        }
+    }
+
     private fun handleCloseIntent(intent: Intent): Boolean {
         if (intent.getBooleanExtra(EXTRA_CLOSE, false)) {
             finish()
@@ -88,4 +117,33 @@ class QuietHoursActivity : AppCompatActivity() {
         }
         return false
     }
+
+    private fun shouldAllowQuietOverlay(): Boolean {
+        val settings = quietHoursManager.getSettings()
+        return settings.enabled && quietHoursManager.isNowInQuietHours(settings)
+    }
+
+    private fun unlockTemporarilyAndOpenLauncher() {
+        quietHoursManager.beginTemporaryWake(getSystemScreenTimeoutMs())
+
+        val launchIntent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            putExtra(EXTRA_ALLOW_ONE_QUIET_RESUME, true)
+        }
+        startActivity(launchIntent)
+        finish()
+    }
+
+    private fun getSystemScreenTimeoutMs(): Long {
+        return try {
+            val configuredTimeout = Settings.System.getInt(
+                contentResolver,
+                Settings.System.SCREEN_OFF_TIMEOUT
+            ).toLong()
+            (configuredTimeout - TIMEOUT_MARGIN_MS).coerceAtLeast(1_000L)
+        } catch (_: Exception) {
+            (FALLBACK_TIMEOUT_MS - TIMEOUT_MARGIN_MS).coerceAtLeast(1_000L)
+        }
+    }
+
 }

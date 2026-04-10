@@ -9,6 +9,8 @@ import android.os.Bundle
 import android.provider.Settings
 import android.app.role.RoleManager
 import android.util.Log
+import android.os.Handler
+import android.os.Looper
 import androidx.appcompat.app.AlertDialog
 import android.widget.Button
 import android.widget.CompoundButton
@@ -42,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusTextView: TextView
     private lateinit var launcherModeStatusTextView: TextView
     private lateinit var setLauncherButton: Button
+    private lateinit var preventLockSwitch: SwitchCompat
     private lateinit var quietHoursSwitch: SwitchCompat
     private lateinit var quietHoursStatusTextView: TextView
     private lateinit var quietHoursStartButton: Button
@@ -51,6 +54,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var appDrawerBottomSheetBehavior: BottomSheetBehavior<LinearLayout>
     private lateinit var appDrawerAdapter: AppDrawerAdapter
     private var installedApps: List<AppInfo> = emptyList()
+    private var skipQuietOverlayOnce = false
+    private val tempWakeHandler = Handler(Looper.getMainLooper())
+    private val tempWakeTimeoutRunnable = Runnable {
+        val wakeSessionExpired =
+            quietHoursManager.hasTemporaryWakeSession() &&
+                quietHoursManager.getTemporaryWakeRemainingMs() <= 0L
+
+        if (quietHoursManager.isNowInQuietHours() && wakeSessionExpired) {
+            quietHoursManager.clearTemporaryWake()
+            QuietHoursActivity.start(this)
+        }
+        applyTemporaryWakeWindowFlags()
+    }
 
     companion object {
         private const val REQUEST_POST_NOTIFICATIONS = 1001
@@ -78,6 +94,7 @@ class MainActivity : AppCompatActivity() {
         statusTextView = findViewById(R.id.status_text_view)
         launcherModeStatusTextView = findViewById(R.id.launcher_mode_status_text_view)
         setLauncherButton = findViewById(R.id.set_launcher_button)
+        preventLockSwitch = findViewById(R.id.prevent_lock_switch)
         quietHoursSwitch = findViewById(R.id.quiet_hours_switch)
         quietHoursStatusTextView = findViewById(R.id.quiet_hours_status_text_view)
         quietHoursStartButton = findViewById(R.id.quiet_hours_start_button)
@@ -87,6 +104,7 @@ class MainActivity : AppCompatActivity() {
         appDrawerBottomSheetBehavior = BottomSheetBehavior.from(appDrawerBottomSheet)
 
         setupAppDrawer()
+        consumeQuietOverlaySkipIntent(intent)
 
         setLauncherButton.setOnClickListener {
             requestLauncherRole()
@@ -110,6 +128,11 @@ class MainActivity : AppCompatActivity() {
                 QuietHoursActivity.stop(this)
             }
             refreshQuietHoursUi()
+        }
+
+        preventLockSwitch.setOnCheckedChangeListener { _: CompoundButton, isChecked: Boolean ->
+            quietHoursManager.setPreventScreenLock(isChecked)
+            applyTemporaryWakeWindowFlags()
         }
 
         ensureNotificationPermissionAndStartService()
@@ -145,10 +168,44 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        consumeQuietOverlaySkipIntent(intent)
         updateLauncherModeStatus()
         refreshQuietHoursUi()
         if (quietHoursManager.getSettings().enabled) {
             quietHoursManager.scheduleAlarms()
+        }
+
+        applyTemporaryWakeWindowFlags()
+        scheduleLocalTemporaryWakeTimeoutCheck()
+
+        if (quietHoursManager.isNowInQuietHours()) {
+            if (skipQuietOverlayOnce) {
+                skipQuietOverlayOnce = false
+            } else {
+                // Any return to launcher during quiet hours should re-black immediately.
+                quietHoursManager.clearTemporaryWake()
+                QuietHoursActivity.start(this)
+            }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        tempWakeHandler.removeCallbacks(tempWakeTimeoutRunnable)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        if (intent != null) {
+            setIntent(intent)
+            consumeQuietOverlaySkipIntent(intent)
+            if (isHomeIntent(intent) && quietHoursManager.isNowInQuietHours()) {
+                skipQuietOverlayOnce = false
+                quietHoursManager.clearTemporaryWake()
+                QuietHoursActivity.start(this)
+            }
+            applyTemporaryWakeWindowFlags()
+            scheduleLocalTemporaryWakeTimeoutCheck()
         }
     }
 
@@ -305,6 +362,11 @@ class MainActivity : AppCompatActivity() {
         } else {
             quietHoursResumeAppButton.text = getString(R.string.quiet_hours_resume_app_none)
         }
+
+        val preventLockEnabled = quietHoursManager.isPreventScreenLockEnabled()
+        if (preventLockSwitch.isChecked != preventLockEnabled) {
+            preventLockSwitch.isChecked = preventLockEnabled
+        }
     }
 
     private fun showResumeAppPicker() {
@@ -394,6 +456,40 @@ class MainActivity : AppCompatActivity() {
             pendingResumeRetryScheduled = false
             Log.w(TAG, "Failed to launch pending resume app: $resumePackage error=$lastError")
         }
+    }
+
+    private fun consumeQuietOverlaySkipIntent(incomingIntent: Intent?) {
+        if (incomingIntent?.getBooleanExtra(QuietHoursActivity.EXTRA_ALLOW_ONE_QUIET_RESUME, false) == true) {
+            skipQuietOverlayOnce = true
+            incomingIntent.removeExtra(QuietHoursActivity.EXTRA_ALLOW_ONE_QUIET_RESUME)
+            setIntent(incomingIntent)
+        }
+    }
+
+    private fun isHomeIntent(incomingIntent: Intent): Boolean {
+        return incomingIntent.action == Intent.ACTION_MAIN &&
+            incomingIntent.hasCategory(Intent.CATEGORY_HOME)
+    }
+
+    private fun applyTemporaryWakeWindowFlags() {
+        val keepScreenOn = quietHoursManager.isPreventScreenLockEnabled()
+
+        if (keepScreenOn) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    private fun scheduleLocalTemporaryWakeTimeoutCheck() {
+        tempWakeHandler.removeCallbacks(tempWakeTimeoutRunnable)
+
+        if (!quietHoursManager.isNowInQuietHours() || !quietHoursManager.isTemporaryWakeActive()) {
+            return
+        }
+
+        val delayMs = quietHoursManager.getTemporaryWakeRemainingMs().coerceAtLeast(200L)
+        tempWakeHandler.postDelayed(tempWakeTimeoutRunnable, delayMs)
     }
 
     private fun formatTime(hour: Int, minute: Int): String {

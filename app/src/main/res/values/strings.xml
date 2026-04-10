@@ -16,6 +16,7 @@
     <string name="unknown_launcher">unknown</string>
     <string name="quiet_hours_title">Quiet Hours</string>
     <string name="quiet_hours_enable">Enable daily quiet hours</string>
+    <string name="prevent_screen_lock">Prevent screen lock</string>
     <string name="quiet_hours_off">Quiet hours are off</string>
     <string name="quiet_hours_status_format">Quiet hours: %1$s - %2$s daily</string>
     <string name="quiet_hours_start_button">Set Start</string>
@@ -26,4 +27,6 @@
     <string name="quiet_hours_resume_app_format">Resume App After Quiet Hours: %1$s</string>
     <string name="quiet_hours_picker_title">Select app to launch when quiet hours end</string>
     <string name="quiet_hours_picker_none_option">None (stay on launcher)</string>
+    <string name="quiet_hours_tap_hint">Quiet hours active. Tap to wake screen.</string>
+    <string name="quiet_hours_tap_to_turn_off">Tap again to turn screen off. Auto-off follows system screen timeout.</string>
 </resources>

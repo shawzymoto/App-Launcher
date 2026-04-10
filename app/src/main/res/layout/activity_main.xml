@@ -51,6 +51,13 @@
                 android:text="Enable Launcher Mode"
                 android:layout_marginBottom="12dp" />
 
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/prevent_lock_switch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/prevent_screen_lock"
+                android:layout_marginBottom="12dp" />
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

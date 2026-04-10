@@ -29,16 +29,26 @@ class QuietHoursAlarmReceiver : BroadcastReceiver() {
 
             QuietHoursManager.ACTION_QUIET_HOURS_START -> {
                 Log.i(TAG, "Quiet hours start alarm fired")
+                manager.clearTemporaryWake()
                 QuietHoursActivity.start(context)
                 manager.scheduleAlarms()
             }
 
             QuietHoursManager.ACTION_QUIET_HOURS_END -> {
                 Log.i(TAG, "Quiet hours end alarm fired")
+                manager.clearTemporaryWake()
                 wakeScreen(context)
                 manager.queuePendingResumeAppLaunch()
                 QuietHoursActivity.stop(context)
                 manager.scheduleAlarms()
+            }
+
+            QuietHoursManager.ACTION_QUIET_HOURS_WAKE_TIMEOUT -> {
+                Log.i(TAG, "Quiet hours wake timeout reached")
+                manager.clearTemporaryWake()
+                if (manager.isNowInQuietHours()) {
+                    QuietHoursActivity.start(context)
+                }
             }
         }
     }
