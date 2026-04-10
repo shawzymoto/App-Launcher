@@ -23,7 +23,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import java.text.DateFormat
@@ -148,8 +148,24 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        appDrawerRecyclerView.layoutManager = LinearLayoutManager(this)
+        val gridLayoutManager = GridLayoutManager(this, getAppDrawerSpanCount())
+        gridLayoutManager.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+            override fun getSpanSize(position: Int): Int {
+                return if (appDrawerAdapter.isHeader(position)) {
+                    gridLayoutManager.spanCount
+                } else {
+                    1
+                }
+            }
+        }
+        appDrawerRecyclerView.layoutManager = gridLayoutManager
         appDrawerRecyclerView.adapter = appDrawerAdapter
+        appDrawerRecyclerView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            val updatedSpanCount = getAppDrawerSpanCount()
+            if (gridLayoutManager.spanCount != updatedSpanCount) {
+                gridLayoutManager.spanCount = updatedSpanCount
+            }
+        }
 
         appDrawerBottomSheetBehavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onStateChanged(bottomSheet: android.view.View, newState: Int) {
@@ -490,6 +506,12 @@ class MainActivity : AppCompatActivity() {
 
         val delayMs = quietHoursManager.getTemporaryWakeRemainingMs().coerceAtLeast(200L)
         tempWakeHandler.postDelayed(tempWakeTimeoutRunnable, delayMs)
+    }
+
+    private fun getAppDrawerSpanCount(): Int {
+        val minItemWidthDp = 92
+        val widthDp = resources.configuration.screenWidthDp
+        return (widthDp / minItemWidthDp).coerceAtLeast(3)
     }
 
     private fun formatTime(hour: Int, minute: Int): String {

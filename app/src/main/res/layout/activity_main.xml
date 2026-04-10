@@ -121,7 +121,7 @@
         android:layout_height="match_parent"
         android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:background="@android:color/white"
+        android:background="?attr/colorSurface"
         android:elevation="8dp"
         app:behavior_fitToContents="true"
         app:behavior_hideable="false"
@@ -143,6 +143,7 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:text="@string/app_drawer_hint"
+            android:textColor="?android:textColorPrimary"
             android:textStyle="bold"
             android:paddingBottom="10dp" />
 
