@@ -11,10 +11,8 @@ import android.app.role.RoleManager
 import android.util.Log
 import androidx.appcompat.app.AlertDialog
 import android.widget.Button
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
-import android.widget.ListView
 import android.widget.CompoundButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.widget.SwitchCompat
@@ -23,6 +21,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import java.text.DateFormat
 import java.util.Calendar
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +37,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var appLauncher: AppLauncher
     private lateinit var appManager: AppManager
-    private lateinit var listView: ListView
+    private lateinit var appDrawerRecyclerView: RecyclerView
+    private lateinit var appDrawerHintTextView: TextView
     private lateinit var statusTextView: TextView
     private lateinit var launcherModeStatusTextView: TextView
     private lateinit var setLauncherButton: Button
@@ -46,6 +48,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var quietHoursEndButton: Button
     private lateinit var quietHoursResumeAppButton: Button
     private lateinit var quietHoursManager: QuietHoursManager
+    private lateinit var appDrawerBottomSheetBehavior: BottomSheetBehavior<LinearLayout>
+    private lateinit var appDrawerAdapter: AppDrawerAdapter
     private var installedApps: List<AppInfo> = emptyList()
 
     companion object {
@@ -69,7 +73,8 @@ class MainActivity : AppCompatActivity() {
         appManager = AppManager(this)
         quietHoursManager = QuietHoursManager(this)
 
-        listView = findViewById(R.id.app_list_view)
+        appDrawerRecyclerView = findViewById(R.id.app_drawer_recycler_view)
+        appDrawerHintTextView = findViewById(R.id.app_drawer_hint_text_view)
         statusTextView = findViewById(R.id.status_text_view)
         launcherModeStatusTextView = findViewById(R.id.launcher_mode_status_text_view)
         setLauncherButton = findViewById(R.id.set_launcher_button)
@@ -78,6 +83,10 @@ class MainActivity : AppCompatActivity() {
         quietHoursStartButton = findViewById(R.id.quiet_hours_start_button)
         quietHoursEndButton = findViewById(R.id.quiet_hours_end_button)
         quietHoursResumeAppButton = findViewById(R.id.quiet_hours_resume_app_button)
+        val appDrawerBottomSheet: LinearLayout = findViewById(R.id.app_drawer_bottom_sheet)
+        appDrawerBottomSheetBehavior = BottomSheetBehavior.from(appDrawerBottomSheet)
+
+        setupAppDrawer()
 
         setLauncherButton.setOnClickListener {
             requestLauncherRole()
@@ -107,6 +116,31 @@ class MainActivity : AppCompatActivity() {
         updateLauncherModeStatus()
         refreshQuietHoursUi()
         loadAndDisplayApps()
+    }
+
+    private fun setupAppDrawer() {
+        appDrawerAdapter = AppDrawerAdapter { selectedApp ->
+            if (appLauncher.isAppInstalled(selectedApp.packageName)) {
+                appLauncher.launchApp(selectedApp.packageName)
+            }
+        }
+
+        appDrawerRecyclerView.layoutManager = LinearLayoutManager(this)
+        appDrawerRecyclerView.adapter = appDrawerAdapter
+
+        appDrawerBottomSheetBehavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
+            override fun onStateChanged(bottomSheet: android.view.View, newState: Int) {
+                appDrawerHintTextView.text = if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+                    getString(R.string.app_drawer_open)
+                } else {
+                    getString(R.string.app_drawer_hint)
+                }
+            }
+
+            override fun onSlide(bottomSheet: android.view.View, slideOffset: Float) {
+                // No-op.
+            }
+        })
     }
 
     override fun onResume() {
@@ -230,17 +264,7 @@ class MainActivity : AppCompatActivity() {
                 appManager.getInstalledApps()
             }
             installedApps = apps
-            val appNames = apps.map { it.name }
-
-            val adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_list_item_1, appNames)
-            listView.adapter = adapter
-
-            listView.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
-                val selectedApp = apps[position]
-                if (appLauncher.isAppInstalled(selectedApp.packageName)) {
-                    appLauncher.launchApp(selectedApp.packageName)
-                }
-            }
+            appDrawerAdapter.submitList(apps)
 
             refreshQuietHoursUi()
         }

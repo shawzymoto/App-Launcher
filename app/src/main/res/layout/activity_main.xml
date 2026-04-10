@@ -1,103 +1,151 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:layout_height="match_parent">
 
-    <TextView
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/app_launcher_title"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="16dp" />
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:layout_marginBottom="64dp">
 
-    <TextView
-        android:id="@+id/status_text_view"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Starting REST API..."
-        android:textSize="12sp"
-        android:textColor="@color/teal_200"
-        android:padding="8dp"
-        android:background="@color/purple_700"
-        android:layout_marginBottom="12dp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
 
-    <TextView
-        android:id="@+id/launcher_mode_status_text_view"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Launcher mode is disabled"
-        android:textSize="13sp"
-        android:padding="8dp"
-        android:layout_marginBottom="8dp" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/app_launcher_title"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="16dp" />
 
-    <Button
-        android:id="@+id/set_launcher_button"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Enable Launcher Mode"
-        android:layout_marginBottom="12dp" />
+            <TextView
+                android:id="@+id/status_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Starting REST API..."
+                android:textSize="12sp"
+                android:textColor="@color/teal_200"
+                android:padding="8dp"
+                android:background="@color/purple_700"
+                android:layout_marginBottom="12dp" />
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/quiet_hours_title"
-        android:textStyle="bold"
-        android:textSize="16sp"
-        android:layout_marginBottom="8dp" />
+            <TextView
+                android:id="@+id/launcher_mode_status_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Launcher mode is disabled"
+                android:textSize="13sp"
+                android:padding="8dp"
+                android:layout_marginBottom="8dp" />
 
-    <androidx.appcompat.widget.SwitchCompat
-        android:id="@+id/quiet_hours_switch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/quiet_hours_enable"
-        android:layout_marginBottom="8dp" />
+            <Button
+                android:id="@+id/set_launcher_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Enable Launcher Mode"
+                android:layout_marginBottom="12dp" />
 
-    <TextView
-        android:id="@+id/quiet_hours_status_text_view"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/quiet_hours_off"
-        android:textSize="13sp"
-        android:paddingBottom="8dp" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/quiet_hours_title"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:layout_marginBottom="8dp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/quiet_hours_switch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/quiet_hours_enable"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/quiet_hours_status_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/quiet_hours_off"
+                android:textSize="13sp"
+                android:paddingBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="12dp">
+
+                <Button
+                    android:id="@+id/quiet_hours_start_button"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/quiet_hours_start_button" />
+
+                <Space
+                    android:layout_width="12dp"
+                    android:layout_height="1dp" />
+
+                <Button
+                    android:id="@+id/quiet_hours_end_button"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/quiet_hours_end_button" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/quiet_hours_resume_app_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/quiet_hours_resume_app_none"
+                android:layout_marginBottom="12dp" />
+        </LinearLayout>
+    </ScrollView>
 
     <LinearLayout
+        android:id="@+id/app_drawer_bottom_sheet"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="12dp">
+        android:layout_height="match_parent"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="@android:color/white"
+        android:elevation="8dp"
+        app:behavior_fitToContents="true"
+        app:behavior_hideable="false"
+        app:behavior_peekHeight="72dp"
+        app:behavior_skipCollapsed="false"
+        app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
-        <Button
-            android:id="@+id/quiet_hours_start_button"
-            android:layout_width="0dp"
+        <View
+            android:layout_width="48dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="8dp"
+            android:background="@android:color/darker_gray" />
+
+        <TextView
+            android:id="@+id/app_drawer_hint_text_view"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/quiet_hours_start_button" />
+            android:gravity="center"
+            android:text="@string/app_drawer_hint"
+            android:textStyle="bold"
+            android:paddingBottom="10dp" />
 
-        <Space
-            android:layout_width="12dp"
-            android:layout_height="1dp" />
-
-        <Button
-            android:id="@+id/quiet_hours_end_button"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/app_drawer_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
             android:layout_weight="1"
-            android:text="@string/quiet_hours_end_button" />
+            android:paddingBottom="12dp"
+            android:clipToPadding="false" />
     </LinearLayout>
 
-    <Button
-        android:id="@+id/quiet_hours_resume_app_button"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/quiet_hours_resume_app_none"
-        android:layout_marginBottom="12dp" />
-
-    <ListView
-        android:id="@+id/app_list_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-
-</LinearLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

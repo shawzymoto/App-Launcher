@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">App Launcher</string>
-    <string name="app_launcher_title">Installed Apps</string>
+    <string name="app_launcher_title">Launcher Controls</string>
+    <string name="app_drawer_hint">Swipe up for all apps</string>
+    <string name="app_drawer_open">All apps</string>
+    <string name="app_icon_content_description">Application icon</string>
     <string name="launcher_mode_enabled">Launcher mode is enabled. This app is your default Home app.</string>
     <string name="launcher_mode_not_enabled">Launcher mode is disabled. Background app switching may be blocked by Android.</string>
     <string name="launcher_mode_enabled_current">Launcher mode is enabled. Current Home app: %1$s</string>
