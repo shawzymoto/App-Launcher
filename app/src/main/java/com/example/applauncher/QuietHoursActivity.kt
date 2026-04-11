@@ -24,9 +24,12 @@ class QuietHoursActivity : AppCompatActivity() {
         private var isOverlayVisible = false
 
         fun start(context: Context) {
-            if (isOverlayVisible) return
             val intent = Intent(context, QuietHoursActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP
+                )
             }
             context.startActivity(intent)
         }
@@ -63,13 +66,9 @@ class QuietHoursActivity : AppCompatActivity() {
             return
         }
 
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-        )
+        applyQuietWindowFlags()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
             setTurnScreenOn(false)
         }
 
@@ -107,7 +106,10 @@ class QuietHoursActivity : AppCompatActivity() {
         super.onResume()
         if (!shouldAllowQuietOverlay()) {
             finish()
+            return
         }
+
+        applyQuietWindowFlags()
     }
 
     private fun handleCloseIntent(intent: Intent): Boolean {
@@ -121,6 +123,22 @@ class QuietHoursActivity : AppCompatActivity() {
     private fun shouldAllowQuietOverlay(): Boolean {
         val settings = quietHoursManager.getSettings()
         return settings.enabled && quietHoursManager.isNowInQuietHours(settings)
+    }
+
+    private fun applyQuietWindowFlags() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+        }
+
+        if (quietHoursManager.isPreventScreenLockEnabled()) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+
+        window.attributes = window.attributes.apply {
+            screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF
+        }
     }
 
     private fun unlockTemporarilyAndOpenLauncher() {
