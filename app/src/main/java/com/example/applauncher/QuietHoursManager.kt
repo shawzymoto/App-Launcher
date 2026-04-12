@@ -22,6 +22,7 @@ class QuietHoursManager(private val context: Context) {
         private const val TAG = "QuietHoursManager"
         const val ACTION_QUIET_HOURS_START = "com.example.applauncher.action.QUIET_HOURS_START"
         const val ACTION_QUIET_HOURS_END = "com.example.applauncher.action.QUIET_HOURS_END"
+        const val ACTION_QUIET_HOURS_WAKE_TIMEOUT = "com.example.applauncher.action.QUIET_HOURS_WAKE_TIMEOUT"
 
         private const val PREFS_NAME = "quiet_hours_prefs"
         private const val KEY_ENABLED = "enabled"
@@ -32,10 +33,13 @@ class QuietHoursManager(private val context: Context) {
         private const val KEY_RESUME_APP_PACKAGE = "resume_app_package"
         private const val KEY_PENDING_RESUME_APP_PACKAGE = "pending_resume_app_package"
         private const val KEY_PENDING_RESUME_REQUESTED_AT = "pending_resume_requested_at"
+        private const val KEY_TEMP_WAKE_UNTIL = "temp_wake_until"
+        private const val KEY_PREVENT_SCREEN_LOCK = "prevent_screen_lock"
         private const val PENDING_RESUME_MAX_AGE_MS = 5 * 60 * 1000L
 
         private const val REQUEST_START = 4001
         private const val REQUEST_END = 4002
+        private const val REQUEST_WAKE_TIMEOUT = 4003
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -125,6 +129,50 @@ class QuietHoursManager(private val context: Context) {
             .apply()
     }
 
+    fun setPreventScreenLock(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_PREVENT_SCREEN_LOCK, enabled).apply()
+    }
+
+    fun isPreventScreenLockEnabled(): Boolean {
+        return prefs.getBoolean(KEY_PREVENT_SCREEN_LOCK, true)
+    }
+
+    fun beginTemporaryWake(timeoutMs: Long) {
+        val wakeUntil = System.currentTimeMillis() + timeoutMs.coerceAtLeast(1_000L)
+        prefs.edit().putLong(KEY_TEMP_WAKE_UNTIL, wakeUntil).apply()
+        scheduleTemporaryWakeTimeout(wakeUntil)
+        Log.i(TAG, "Temporary quiet-hours wake enabled until=$wakeUntil")
+    }
+
+    fun isTemporaryWakeActive(): Boolean {
+        val wakeUntil = prefs.getLong(KEY_TEMP_WAKE_UNTIL, 0L)
+        if (wakeUntil <= 0L) return false
+
+        if (System.currentTimeMillis() < wakeUntil) {
+            return true
+        }
+
+        clearTemporaryWake()
+        return false
+    }
+
+    fun getTemporaryWakeRemainingMs(): Long {
+        val wakeUntil = prefs.getLong(KEY_TEMP_WAKE_UNTIL, 0L)
+        if (wakeUntil <= 0L) return 0L
+        val remaining = wakeUntil - System.currentTimeMillis()
+        return if (remaining > 0L) remaining else 0L
+    }
+
+    fun hasTemporaryWakeSession(): Boolean {
+        return prefs.getLong(KEY_TEMP_WAKE_UNTIL, 0L) > 0L
+    }
+
+    fun clearTemporaryWake() {
+        prefs.edit().remove(KEY_TEMP_WAKE_UNTIL).apply()
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarmManager.cancel(wakeTimeoutPendingIntent())
+    }
+
     fun isNowInQuietHours(settings: QuietHoursSettings = getSettings()): Boolean {
         if (!settings.enabled) return false
 
@@ -206,7 +254,42 @@ class QuietHoursManager(private val context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.cancel(startPendingIntent())
         alarmManager.cancel(endPendingIntent())
+        alarmManager.cancel(wakeTimeoutPendingIntent())
+        clearTemporaryWake()
         clearPendingResumeAppLaunch()
+    }
+
+    private fun scheduleTemporaryWakeTimeout(triggerAt: Long) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        try {
+            val exactAllowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                alarmManager.canScheduleExactAlarms()
+            } else {
+                true
+            }
+
+            if (exactAllowed) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC,
+                    triggerAt,
+                    wakeTimeoutPendingIntent()
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC,
+                    triggerAt,
+                    wakeTimeoutPendingIntent()
+                )
+            }
+        } catch (se: SecurityException) {
+            Log.w(TAG, "Unable to schedule exact temporary wake timeout", se)
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC,
+                triggerAt,
+                wakeTimeoutPendingIntent()
+            )
+        }
     }
 
     private fun startPendingIntent(): PendingIntent {
@@ -228,6 +311,18 @@ class QuietHoursManager(private val context: Context) {
         return PendingIntent.getBroadcast(
             context,
             REQUEST_END,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun wakeTimeoutPendingIntent(): PendingIntent {
+        val intent = Intent(context, QuietHoursAlarmReceiver::class.java).apply {
+            action = ACTION_QUIET_HOURS_WAKE_TIMEOUT
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            REQUEST_WAKE_TIMEOUT,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

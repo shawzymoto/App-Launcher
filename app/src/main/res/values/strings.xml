@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">App Launcher</string>
-    <string name="app_launcher_title">Installed Apps</string>
+    <string name="app_launcher_title">Launcher Controls</string>
+    <string name="app_drawer_hint">Swipe up for all apps</string>
+    <string name="app_drawer_open">All apps</string>
+    <string name="app_icon_content_description">Application icon</string>
     <string name="launcher_mode_enabled">Launcher mode is enabled. This app is your default Home app.</string>
     <string name="launcher_mode_not_enabled">Launcher mode is disabled. Background app switching may be blocked by Android.</string>
     <string name="launcher_mode_enabled_current">Launcher mode is enabled. Current Home app: %1$s</string>
@@ -13,14 +16,17 @@
     <string name="unknown_launcher">unknown</string>
     <string name="quiet_hours_title">Quiet Hours</string>
     <string name="quiet_hours_enable">Enable daily quiet hours</string>
+    <string name="prevent_screen_lock">Prevent screen lock</string>
     <string name="quiet_hours_off">Quiet hours are off</string>
     <string name="quiet_hours_status_format">Quiet hours: %1$s - %2$s daily</string>
     <string name="quiet_hours_start_button">Set Start</string>
     <string name="quiet_hours_end_button">Set End</string>
     <string name="quiet_hours_start_time_set">Quiet start set to %1$s</string>
     <string name="quiet_hours_end_time_set">Quiet end set to %1$s</string>
-    <string name="quiet_hours_resume_app_none">Resume App After Quiet Hours: None</string>
-    <string name="quiet_hours_resume_app_format">Resume App After Quiet Hours: %1$s</string>
-    <string name="quiet_hours_picker_title">Select app to launch when quiet hours end</string>
+    <string name="quiet_hours_resume_app_none">Resuming Application: None</string>
+    <string name="quiet_hours_resume_app_format">Resuming Application: %1$s</string>
+    <string name="quiet_hours_picker_title">Select resuming application</string>
     <string name="quiet_hours_picker_none_option">None (stay on launcher)</string>
+    <string name="quiet_hours_tap_hint">Quiet hours active. Tap to wake screen.</string>
+    <string name="quiet_hours_tap_to_turn_off">Tap again to turn screen off. Auto-off follows system screen timeout.</string>
 </resources>

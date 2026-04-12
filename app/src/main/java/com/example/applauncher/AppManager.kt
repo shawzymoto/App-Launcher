@@ -1,11 +1,13 @@
 package com.example.applauncher
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
+import android.content.Intent
+import android.graphics.drawable.Drawable
 
 data class AppInfo(
     val name: String,
-    val packageName: String
+    val packageName: String,
+    val icon: Drawable?
 )
 
 class AppManager(private val context: Context) {
@@ -15,23 +17,36 @@ class AppManager(private val context: Context) {
         val apps = mutableListOf<AppInfo>()
 
         try {
-            val installedApps = packageManager.getInstalledApplications(0)
-                .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 } // Exclude system apps
-                .sortedBy { packageManager.getApplicationLabel(it).toString() }
+            val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
 
-            for (app in installedApps) {
+            val launcherActivities = packageManager.queryIntentActivities(launcherIntent, 0)
+            val seenPackages = mutableSetOf<String>()
+
+            for (activity in launcherActivities) {
                 try {
-                    val appName = packageManager.getApplicationLabel(app).toString()
+                    val activityInfo = activity.activityInfo ?: continue
+                    val packageName = activityInfo.packageName
+                    if (!seenPackages.add(packageName)) continue
+
+                    val appName = activity.loadLabel(packageManager)?.toString()
+                        ?: packageManager.getApplicationLabel(activityInfo.applicationInfo).toString()
+                    val appIcon = activity.loadIcon(packageManager)
+
                     apps.add(
                         AppInfo(
                             name = appName,
-                            packageName = app.packageName
+                            packageName = packageName,
+                            icon = appIcon
                         )
                     )
                 } catch (e: Exception) {
-                    // Skip apps with missing label or icon
+                    // Skip apps with missing metadata.
                 }
             }
+
+            apps.sortBy { it.name.lowercase() }
         } catch (e: Exception) {
             e.printStackTrace()
         }
