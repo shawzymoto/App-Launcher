@@ -22,6 +22,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -56,6 +57,15 @@ class MainActivity : AppCompatActivity() {
     private var installedApps: List<AppInfo> = emptyList()
     private var skipQuietOverlayOnce = false
     private val tempWakeHandler = Handler(Looper.getMainLooper())
+    private val idleHandler = Handler(Looper.getMainLooper())
+    private val idleRunnable = Runnable {
+        if (!isLauncherInFocus()) return@Runnable
+        if (quietHoursManager.isNowInQuietHours()) return@Runnable
+
+        val resumePackage = quietHoursManager.getResumeAppPackageName() ?: return@Runnable
+        Log.i(TAG, "Idle timeout, launching resuming app: $resumePackage")
+        appLauncher.launchApp(resumePackage)
+    }
     private val tempWakeTimeoutRunnable = Runnable {
         val wakeSessionExpired =
             quietHoursManager.hasTemporaryWakeSession() &&
@@ -73,6 +83,7 @@ class MainActivity : AppCompatActivity() {
         private const val TAG = "MainActivity"
         private const val PENDING_RESUME_RETRY_DELAY_MS = 400L
         private const val MAX_PENDING_RESUME_ATTEMPTS = 6
+        private const val IDLE_TIMEOUT_MS = 20_000L
     }
 
     private val homeRoleLauncher = registerForActivityResult(
@@ -193,6 +204,7 @@ class MainActivity : AppCompatActivity() {
 
         applyTemporaryWakeWindowFlags()
         scheduleLocalTemporaryWakeTimeoutCheck()
+        scheduleIdleResumeTimeout()
 
         if (quietHoursManager.isNowInQuietHours()) {
             if (skipQuietOverlayOnce) {
@@ -208,6 +220,23 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         tempWakeHandler.removeCallbacks(tempWakeTimeoutRunnable)
+        idleHandler.removeCallbacks(idleRunnable)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            scheduleIdleResumeTimeout()
+        } else {
+            idleHandler.removeCallbacks(idleRunnable)
+        }
+    }
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent?): Boolean {
+        if (isLauncherInFocus()) {
+            resetIdleResumeTimer()
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -495,6 +524,23 @@ class MainActivity : AppCompatActivity() {
         } else {
             window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
+    }
+
+    private fun resetIdleResumeTimer() {
+        idleHandler.removeCallbacks(idleRunnable)
+        scheduleIdleResumeTimeout()
+    }
+
+    private fun scheduleIdleResumeTimeout() {
+        idleHandler.removeCallbacks(idleRunnable)
+
+        if (isLauncherInFocus() && !quietHoursManager.isNowInQuietHours() && quietHoursManager.getResumeAppPackageName() != null) {
+            idleHandler.postDelayed(idleRunnable, IDLE_TIMEOUT_MS)
+        }
+    }
+
+    private fun isLauncherInFocus(): Boolean {
+        return lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && hasWindowFocus()
     }
 
     private fun scheduleLocalTemporaryWakeTimeoutCheck() {
