@@ -95,6 +95,35 @@ Optional: skip reinstall when you only want to restart and re-check API health:
 ./scripts/test-emulator-api.sh --skip-install
 ```
 
+### Safe Release Install on a Physical Device
+
+Use the release installer script when you want a signed release APK installed directly over ADB:
+
+```bash
+# 1) Connect one device with USB debugging enabled
+adb devices
+
+# 2) Build + install release APK
+./scripts/install-release-to-device.sh
+```
+
+If you have more than one device connected, target one explicitly:
+
+```bash
+./scripts/install-release-to-device.sh --serial <device-id>
+```
+
+What this script does safely:
+1. Verifies required tools (`adb`, `keytool`) and connected device state
+2. Builds a release APK (`./gradlew assembleRelease`)
+3. Refuses to install unsigned release APKs
+4. Installs only when `adb install` reports success
+
+Signing safety notes:
+1. If release signing is not configured, the script creates a local keystore (`app/release-keystore.jks`) and `keystore.properties` with random credentials
+2. These files are already ignored by Git (`*.jks`, `*.keystore`, `keystore.properties`) and should remain local/private
+3. Never commit or share signing credentials; back up your keystore securely if you plan to publish updates signed with the same key
+
 ## REST API Quick Start
 
 The app starts a REST API on port 3001 automatically when launched.
