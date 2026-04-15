@@ -239,12 +239,60 @@ AppLauncher/
 ./gradlew test
 ```
 
+## GitHub Actions CI/CD
+
+The repository now supports two GitHub Actions workflows:
+
+- `Android CI`: runs on every push and pull request and verifies the project with `./gradlew build`
+- `Android Release`: runs on tag pushes matching `v*` and on manual dispatch, builds a release APK, and uploads it as a workflow artifact
+
+### CI Build Verification
+
+No extra setup is required for CI verification. Any push or pull request will trigger the build workflow automatically.
+
+### Release APK Builds
+
+To build a release APK manually, use the `Android Release` workflow from the GitHub Actions tab.
+
+To build and publish an APK from a tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+That workflow will:
+
+1. Build `assembleRelease`
+2. Upload the APK as a workflow artifact
+3. Attach the APK to the GitHub release when triggered from a `v*` tag
+
+### Optional Signed Release Setup
+
+If you want the release APK to be signed in GitHub Actions, add these repository secrets:
+
+- `RELEASE_KEYSTORE_BASE64`: base64-encoded contents of your `.jks` keystore file
+- `RELEASE_STORE_PASSWORD`: keystore password
+- `RELEASE_KEY_ALIAS`: key alias
+- `RELEASE_KEY_PASSWORD`: key password
+
+Example command to base64-encode a keystore on Linux:
+
+```bash
+base64 -w 0 app/release-keystore.jks
+```
+
+If those secrets are not configured, the release workflow will still build an unsigned release APK when possible.
+
 ## Permissions
 
 The app requests the following permissions:
-- `QUERY_ALL_PACKAGES`: Required to query and display installed applications (Android 11+)
 - `INTERNET`: Required for REST API server
 - `ACCESS_NETWORK_STATE`: Required for network operations
+- `RECEIVE_BOOT_COMPLETED`: Required to restore quiet-hours alarms after reboot or app update
+- `WAKE_LOCK`: Required for quiet-hours wake behavior
+
+For Android package visibility, the app uses manifest `queries` declarations for launcher-style activities and configured supported apps instead of `QUERY_ALL_PACKAGES`.
 
 ## REST API Overview
 
