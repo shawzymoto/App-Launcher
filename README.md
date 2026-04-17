@@ -11,6 +11,22 @@ An Android application that displays installed apps and allows launching them lo
 - 🏠 Home Assistant integration ready
 - 🔗 Deep link support (e.g. open a specific Unifi camera view)
 
+## Screenshots
+
+### Launcher Screen
+
+![App Launcher Screen](screenshots/Screenshot_20260417_064006_App%20Launcher.jpg)
+
+### Postman Examples
+
+![Postman Example 1](screenshots/Screenshot%20from%202026-04-17%2006-42-17.png)
+
+![Postman Example 2](screenshots/postman-unifi.png)
+
+### Home Assistant Script Example
+
+![Home Assistant Script Example](screenshots/Screenshot%20from%202026-04-17%2006-47-42.png)
+
 ## Development Setup (Linux)
 
 ### Prerequisites
